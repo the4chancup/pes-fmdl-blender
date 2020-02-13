@@ -108,5 +108,10 @@ def register():
 def unregister():
 	UI.unregister()
 	
+	exportMenu().remove(exportFmdlMenuItem)
+	bpy.utils.unregister_class(ExportFmdl)
+	
 	importMenu().remove(importFmdlMenuItem)
 	bpy.utils.unregister_class(ImportFmdl)
+	
+	bpy.utils.unregister_class(MaterialParameter)

@@ -1,0 +1,10 @@
+TODO:
+
+- tangents
+- missing datatype occasionally used for uv data
+- vertex-loop preservation
+- mesh splitting
+- ftex support
+- import/export UI
+- skeleton import UI
+- material import UI

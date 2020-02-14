@@ -1,6 +1,7 @@
 TODO:
 
 - tangents
+- automatic triangulation
 - missing datatype occasionally used for uv data
 - vertex-loop preservation
 - mesh splitting
@@ -8,3 +9,7 @@ TODO:
 - import/export UI
 - skeleton import UI
 - material import UI
+- autohide irrelevant blender panes
+- success message on successful export
+- blender 2.81 support
+- custom bones / hand bones

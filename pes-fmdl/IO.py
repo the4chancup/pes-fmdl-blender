@@ -643,10 +643,11 @@ def exportFmdl(context):
 				transformedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[0],
 				1.0 - transformedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[1],
 			))
-			loop.uv.append(FmdlFile.FmdlFile.Vector2(
-				transformedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[0],
-				1.0 - transformedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[1],
-			))
+			if uvLayerNormal != None:
+				loop.uv.append(FmdlFile.FmdlFile.Vector2(
+					transformedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[0],
+					1.0 - transformedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[1],
+				))
 			loop.loopIndices = [i]
 			
 			found = False
@@ -763,13 +764,15 @@ def exportFmdl(context):
 			raise InvalidFmdl("Mesh '%s' does not have a normals UV map set.")
 		if len(normalUvMaps) > 1:
 			raise InvalidFmdl("Mesh '%s' has conflicting normals UV maps '%s' and '%s' set." % (normalUvMaps[0], normalUvMaps[1]))
-		uvLayerColor = colorUvMaps[0]
-		uvLayerNormal = normalUvMaps[0]
 		
-		vertexFields.uvCount = 2
-		if uvLayerColor == uvLayerNormal:
-			vertexFields.uvEqualities[0] = [1]
-			vertexFields.uvEqualities[1] = [0]
+		uvLayerColor = colorUvMaps[0]
+		vertexFields.uvCount = 1
+		
+		if normalUvMaps[0] == uvLayerColor:
+			uvLayerNormal = None
+		else:
+			uvLayerNormal = normalUvMaps[0]
+			vertexFields.uvCount += 1
 		
 		boneVector = [bonesByName[vertexGroup.name] for vertexGroup in blenderMeshObject.vertex_groups]
 		if len(boneVector) > 0:

@@ -1,6 +1,5 @@
 TODO:
 
-- tangents
 - automatic triangulation
 - missing datatype occasionally used for uv data
 - vertex-loop preservation

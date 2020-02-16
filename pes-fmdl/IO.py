@@ -606,15 +606,19 @@ def exportFmdl(context):
 				)
 				if normalDotProduct < 0.999:
 					return False
-				# The tangent is based on the normal and UV map.
-				# If the uvs are equal and the normals are approximately equal,
-				# consider the tangents sufficiently equal, and recompute later.
+				tangentDotProduct = (
+					self.tangent.x * other.tangent.x +
+					self.tangent.y * other.tangent.y +
+					self.tangent.z * other.tangent.z
+				)
+				if tangentDotProduct < 0.9:
+					return False
 				return True
 			
 			def add(self, other):
 				self.loopIndices += other.loopIndices
 				self.normal = self.normal.slerp(other.normal, 1.0 / len(self.loopIndices))
-				#self.tangent = self.tangent.slerp(other.tangent, 1.0 / len(self.loopIndices))
+				self.tangent = self.tangent.slerp(other.tangent, 1.0 / len(self.loopIndices))
 		
 		vertices = []
 		for i in range(len(transformedBlenderMesh.vertices)):
@@ -673,14 +677,9 @@ def exportFmdl(context):
 					1.0,
 				)
 				fmdlVertex.tangent = FmdlFile.FmdlFile.Vector4(
-					# TODO: This is definitely extremely broken.
-					# Figure out what to do here properly.
-					#loop.tangent.x,
-					#loop.tangent.z,
-					#-loop.tangent.y,
-					0.0,
-					0.0,
-					0.0,
+					loop.tangent.x,
+					loop.tangent.z,
+					-loop.tangent.y,
 					1.0,
 				)
 				fmdlVertex.color = loop.color

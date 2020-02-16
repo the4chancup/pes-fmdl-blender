@@ -3,7 +3,7 @@ bl_info = {
 	"author": "foreground",
 	"blender": (2, 79, 0),
 	"category": "Import-Export",
-	"version": (0, 1, 0),
+	"version": (0, 1, 1),
 	"warning": "EARLY TEST VERSION",
 }
 
@@ -65,6 +65,8 @@ class ExportFmdl(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
 		
 		fmdlFile = IO.exportFmdl(context)
 		fmdlFile.writeFile(filename)
+		
+		self.report({'INFO'}, "Fmdl exported successfully.") 
 		
 		return {'FINISHED'}
 

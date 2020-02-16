@@ -1720,4 +1720,7 @@ class FmdlFile:
 			0, 0, 0, -1,
 		))
 		
+		# This block needs to be there, even if empty, for compatibility with the old plugin.
+		fmdl.segment1Blocks[1] = bytearray()
+		
 		fmdl.writeFile(filename)

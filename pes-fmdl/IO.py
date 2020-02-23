@@ -97,6 +97,7 @@ def importFmdl(context, fmdl, filename):
 			blenderTextureSlot.use_map_color_diffuse = True
 			blenderTextureSlot.use_map_specular = True
 			blenderTextureSlot.use_map_color_spec = True
+			blenderTextureSlot.use_map_emit = True
 			blenderTextureSlot.use = True
 		else:
 			blenderTextureSlot.use = False

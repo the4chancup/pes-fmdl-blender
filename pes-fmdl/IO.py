@@ -567,11 +567,30 @@ def exportFmdl(context):
 		
 		return (orderedBones, bonesByName)
 	
-	def exportVertices(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector):
-		blenderMesh = blenderMeshObject.data
-		transformedBlenderMesh = blenderMesh.copy()
-		transformedBlenderMesh.transform(blenderMeshObject.matrix_world)
-		transformedBlenderMesh.calc_tangents(uvLayerColor)
+	def exportMeshGeometry(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector):
+		#
+		# Setup a modified version of the mesh data that can be fiddled with.
+		#
+		modifiedBlenderMesh = blenderMeshObject.data.copy()
+		
+		#
+		# Apply mesh-object position and orientation
+		#
+		modifiedBlenderMesh.transform(blenderMeshObject.matrix_world)
+		
+		loopTotals = [0 for i in range(len(modifiedBlenderMesh.polygons))]
+		modifiedBlenderMesh.polygons.foreach_get("loop_total", loopTotals)
+		if max(loopTotals) != 3:
+			#
+			# calc_tangents() only works on triangulated meshes
+			# TODO: optionally triangulate
+			#
+			raise InvalidFmdl("Mesh '%s' contains non-triangle polygons." % name)
+		
+		modifiedBlenderMesh.use_auto_smooth = True
+		modifiedBlenderMesh.calc_tangents(uvLayerColor)
+		
+		
 		
 		class Vertex:
 			def __init__(self):
@@ -622,8 +641,8 @@ def exportFmdl(context):
 				self.tangent = self.tangent.slerp(other.tangent, 1.0 / len(self.loopIndices))
 		
 		vertices = []
-		for i in range(len(transformedBlenderMesh.vertices)):
-			blenderVertex = transformedBlenderMesh.vertices[i]
+		for i in range(len(modifiedBlenderMesh.vertices)):
+			blenderVertex = modifiedBlenderMesh.vertices[i]
 			vertex = Vertex()
 			vertex.position = FmdlFile.FmdlFile.Vector3(
 				blenderVertex.co.x,
@@ -634,8 +653,8 @@ def exportFmdl(context):
 				vertex.boneMapping[boneVector[group.group]] = group.weight
 			vertices.append(vertex)
 		
-		for i in range(len(transformedBlenderMesh.loops)):
-			blenderLoop = transformedBlenderMesh.loops[i]
+		for i in range(len(modifiedBlenderMesh.loops)):
+			blenderLoop = modifiedBlenderMesh.loops[i]
 			vertex = vertices[blenderLoop.vertex_index]
 			
 			loop = Loop()
@@ -645,13 +664,13 @@ def exportFmdl(context):
 			if blenderColorLayer != None:
 				loop.color = [c for c in blenderColorLayer.data[i].color] + [1.0]
 			loop.uv.append(FmdlFile.FmdlFile.Vector2(
-				transformedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[0],
-				1.0 - transformedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[1],
+				modifiedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[0],
+				1.0 - modifiedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[1],
 			))
 			if uvLayerNormal != None:
 				loop.uv.append(FmdlFile.FmdlFile.Vector2(
-					transformedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[0],
-					1.0 - transformedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[1],
+					modifiedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[0],
+					1.0 - modifiedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[1],
 				))
 			loop.loopIndices = [i]
 			
@@ -665,7 +684,7 @@ def exportFmdl(context):
 				vertex.loops.append(loop)
 		
 		fmdlVertices = []
-		fmdlVerticesByLoopIndex = {}
+		fmdlLoopVertices = {}
 		for vertex in vertices:
 			for loop in vertex.loops:
 				fmdlVertex = FmdlFile.FmdlFile.Vertex()
@@ -687,21 +706,21 @@ def exportFmdl(context):
 				fmdlVertex.uv = loop.uv
 				fmdlVertices.append(fmdlVertex)
 				for loopIndex in loop.loopIndices:
-					fmdlVerticesByLoopIndex[loopIndex] = fmdlVertex
+					fmdlLoopVertices[loopIndex] = fmdlVertex
 		
-		return (fmdlVertices, fmdlVerticesByLoopIndex)
+		fmdlFaces = []
+		for face in modifiedBlenderMesh.polygons:
+			fmdlFaces.append(FmdlFile.FmdlFile.Face(
+				fmdlLoopVertices[face.loop_start + 2],
+				fmdlLoopVertices[face.loop_start + 1],
+				fmdlLoopVertices[face.loop_start + 0],
+			))
+		
+		return (fmdlVertices, fmdlFaces)
 	
 	def exportMesh(blenderMeshObject, materialFmdlObjects, bonesByName):
 		blenderMesh = blenderMeshObject.data
 		name = blenderMeshObject.name
-		
-		loopTotals = [0 for i in range(len(blenderMesh.polygons))]
-		blenderMesh.polygons.foreach_get("loop_total", loopTotals)
-		if max(loopTotals) != 3:
-			#
-			# TODO: optionally triangulate
-			#
-			raise InvalidFmdl("Mesh '%s' contains non-triangle polygons." % name)
 		
 		vertexFields = FmdlFile.FmdlFile.VertexFields()
 		vertexFields.hasNormal = True
@@ -778,16 +797,7 @@ def exportFmdl(context):
 		if len(boneVector) > 0:
 			vertexFields.hasBoneMapping = True
 		
-		(vertices, fmdlVerticesByLoopIndex) = exportVertices(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector)
-		
-		faces = []
-		for i in range(len(blenderMesh.polygons)):
-			loopStart = blenderMesh.polygons[i].loop_start
-			faces.append(FmdlFile.FmdlFile.Face(
-				fmdlVerticesByLoopIndex[loopStart + 2],
-				fmdlVerticesByLoopIndex[loopStart + 1],
-				fmdlVerticesByLoopIndex[loopStart + 0]
-			))
+		(vertices, faces) = exportMeshGeometry(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector)
 		
 		mesh = FmdlFile.FmdlFile.Mesh()
 		mesh.vertices = vertices

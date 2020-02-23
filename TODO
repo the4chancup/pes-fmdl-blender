@@ -1,7 +1,6 @@
 TODO:
 
 Bugs:
-- enable auto smooth on meshes
 - split texture path into filename and directory
 - emit shading on textures
 

@@ -251,7 +251,8 @@ def importFmdl(context, fmdl, filename):
 			def normalize(vector):
 				(x, y, z) = vector
 				size = (x ** 2 + y ** 2 + z ** 2) ** 0.5
-				q = (x / size, y / size, z / size)
+				if size < 0.01:
+					return (x, y, z)
 				return (x / size, y / size, z / size)
 			blenderMesh.normals_split_custom_set_from_vertices([
 				normalize((vertex.normal.x, -vertex.normal.z, vertex.normal.y)) for vertex in mesh.vertices

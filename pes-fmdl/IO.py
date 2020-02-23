@@ -102,7 +102,8 @@ def importFmdl(context, fmdl, filename):
 		else:
 			blenderTextureSlot.use = False
 		
-		blenderTexture.fmdl_texture_path = texture.directory + texture.filename
+		blenderTexture.fmdl_texture_filename = texture.filename
+		blenderTexture.fmdl_texture_directory = texture.directory
 		blenderTexture.fmdl_texture_role = textureRole
 	
 	def materialHasSeparateUVMaps(materialInstance, fmdl):
@@ -431,15 +432,9 @@ def exportFmdl(context):
 				continue
 			blenderTexture = slot.texture
 			if blenderTexture not in textureFmdlObjects:
-				path = blenderTexture.fmdl_texture_path.replace('\\', '/')
 				texture = FmdlFile.FmdlFile.Texture()
-				position = path.rfind('/')
-				if position == -1:
-					texture.filename = path
-					texture.directory = ''
-				else:
-					texture.filename = path[position + 1:]
-					texture.directory = path[:position + 1]
+				texture.filename = blenderTexture.fmdl_texture_filename
+				texture.directory = blenderTexture.fmdl_texture_directory
 				textureFmdlObjects[blenderTexture] = texture
 			materialInstance.textures.append((blenderTexture.fmdl_texture_role, textureFmdlObjects[blenderTexture]))
 		

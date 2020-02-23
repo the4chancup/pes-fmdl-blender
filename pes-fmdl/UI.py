@@ -153,7 +153,8 @@ class FMDL_Texture_Panel(bpy.types.Panel):
 		
 		mainColumn = self.layout.column()
 		mainColumn.prop(texture, "fmdl_texture_role", text = "Role")
-		mainColumn.prop(texture, "fmdl_texture_path", text = "Path")
+		mainColumn.prop(texture, "fmdl_texture_filename", text = "Filename")
+		mainColumn.prop(texture, "fmdl_texture_directory", text = "Directory")
 
 
 

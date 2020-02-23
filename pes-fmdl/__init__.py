@@ -96,7 +96,8 @@ def register():
 	bpy.types.Material.fmdl_material_parameters = bpy.props.CollectionProperty(name = "Material Parameters", type = MaterialParameter)
 	bpy.types.Material.fmdl_material_parameter_active = bpy.props.IntProperty(name = "FMDL_Material_Parameter_Name_List index", default = -1)
 	
-	bpy.types.Texture.fmdl_texture_path = bpy.props.StringProperty(name = "Texture Path")
+	bpy.types.Texture.fmdl_texture_filename = bpy.props.StringProperty(name = "Texture Filename")
+	bpy.types.Texture.fmdl_texture_directory = bpy.props.StringProperty(name = "Texture Directory")
 	bpy.types.Texture.fmdl_texture_role = bpy.props.StringProperty(name = "Texture Role")
 	
 	bpy.utils.register_class(ImportFmdl)

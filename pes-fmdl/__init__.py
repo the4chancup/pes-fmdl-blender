@@ -3,83 +3,14 @@ bl_info = {
 	"author": "foreground",
 	"blender": (2, 79, 0),
 	"category": "Import-Export",
-	"version": (0, 2, 0),
+	"version": (0, 2, 1),
 	"warning": "EARLY TEST VERSION",
 }
 
 import bpy
 import bpy.props
-import bpy_extras.io_utils
 
-from . import FmdlFile, IO, UI
-
-
-
-class ImportFmdl(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
-	"""Load a PES FMDL file"""
-	bl_idname = "import_scene.fmdl"
-	bl_label = "Import Fmdl"
-	bl_options = {'PRESET', 'UNDO'}
-	
-	import_label = "PES FMDL (.fmdl)"
-	
-	filename_ext = ".fmdl"
-	filter_glob = bpy.props.StringProperty(default="*.fmdl", options={'HIDDEN'})
-	
-	def execute(self, context):
-		
-		filename = self.filepath
-		
-		fmdlFile = FmdlFile.FmdlFile()
-		fmdlFile.readFile(filename)
-		
-		IO.importFmdl(context, fmdlFile, filename)
-		
-		return {'FINISHED'}
-
-def importFmdlMenuItem(self, context):
-	self.layout.operator(ImportFmdl.bl_idname, text=ImportFmdl.import_label)
-
-def importMenu():
-	if 'TOPBAR_MT_file_import' in dir(bpy.types):
-		return bpy.types.TOPBAR_MT_file_import
-	else:
-		return bpy.types.INFO_MT_file_import
-
-
-
-class ExportFmdl(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
-	"""Load a PES FMDL file"""
-	bl_idname = "export_scene.fmdl"
-	bl_label = "Export Fmdl"
-	bl_options = {'PRESET'}
-	
-	export_label = "PES FMDL (.fmdl)"
-	
-	filename_ext = ".fmdl"
-	filter_glob = bpy.props.StringProperty(default="*.fmdl", options={'HIDDEN'})
-	
-	def execute(self, context):
-		
-		filename = self.filepath
-		
-		fmdlFile = IO.exportFmdl(context)
-		fmdlFile.writeFile(filename)
-		
-		self.report({'INFO'}, "Fmdl exported successfully.") 
-		
-		return {'FINISHED'}
-
-def exportFmdlMenuItem(self, context):
-	self.layout.operator(ExportFmdl.bl_idname, text=ExportFmdl.export_label)
-
-def exportMenu():
-	if 'TOPBAR_MT_file_export' in dir(bpy.types):
-		return bpy.types.TOPBAR_MT_file_export
-	else:
-		return bpy.types.INFO_MT_file_export
-
-
+from . import Operators, UI
 
 class MaterialParameter(bpy.types.PropertyGroup):
 	name = bpy.props.StringProperty(name = "Parameter Name")
@@ -100,21 +31,14 @@ def register():
 	bpy.types.Texture.fmdl_texture_directory = bpy.props.StringProperty(name = "Texture Directory")
 	bpy.types.Texture.fmdl_texture_role = bpy.props.StringProperty(name = "Texture Role")
 	
-	bpy.utils.register_class(ImportFmdl)
-	importMenu().append(importFmdlMenuItem)
+	bpy.types.Object.fmdl_file = bpy.props.BoolProperty(name = "Is FMDL file")
+	bpy.types.Object.fmdl_filename = bpy.props.StringProperty(name = "FMDL filename")
 	
-	bpy.utils.register_class(ExportFmdl)
-	exportMenu().append(exportFmdlMenuItem)
-	
+	Operators.register()
 	UI.register()
 
 def unregister():
 	UI.unregister()
-	
-	exportMenu().remove(exportFmdlMenuItem)
-	bpy.utils.unregister_class(ExportFmdl)
-	
-	importMenu().remove(importFmdlMenuItem)
-	bpy.utils.unregister_class(ImportFmdl)
+	Operators.unregister()
 	
 	bpy.utils.unregister_class(MaterialParameter)

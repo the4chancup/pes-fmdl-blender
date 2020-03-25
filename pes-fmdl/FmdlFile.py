@@ -1247,7 +1247,7 @@ class FmdlFile:
 			if len(meshGroupAssignments) > 0:
 				(firstMeshID, meshCount) = meshGroupAssignments[len(meshGroupAssignments) - 1]
 				if meshID == firstMeshID + meshCount:
-					meshGroupAssignments[len(meshGroupAssignments) - 1] = (meshID, meshCount + 1)
+					meshGroupAssignments[len(meshGroupAssignments) - 1] = (firstMeshID, meshCount + 1)
 				else:
 					meshGroupAssignments.append((meshID, 1))
 			else:

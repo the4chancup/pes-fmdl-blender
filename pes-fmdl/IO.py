@@ -144,22 +144,23 @@ def importFmdl(context, fmdl, filename):
 		if bone in boneIDs:
 			return boneIDs[bone]
 		
+		useConnect = False
 		if bone.name in PesSkeletonData.bones:
 			pesBone = PesSkeletonData.bones[bone.name]
-			tail = (pesBone["x"], -pesBone["z"], pesBone["y"])
-			parentName = pesBone["parent"]
-			if parentName == None:
-				head = (tail[0], tail[1], tail[2] + 0.00001)
+			(headX, headY, headZ) = pesBone.startPosition
+			(tailX, tailY, tailZ) = pesBone.endPosition
+			head = (headX, -headZ, headY)
+			tail = (tailX, -tailZ, tailY)
+			parentBoneName = pesBone.renderParent
+			while parentBoneName is not None and parentBoneName not in bonesByName:
+				parentBoneName = PesSkeletonData.bones[parentBoneName].renderParent
+			if parentBoneName is None:
 				parentBone = None
 			else:
-				parentPesBone = PesSkeletonData.bones[parentName]
-				head = (parentPesBone["x"], -parentPesBone["z"], parentPesBone["y"])
-				if bone.parent != None and bone.parent.name == parentName:
-					parentBone = bone.parent
-				elif parentName in bonesByName:
-					parentBone = bonesByName[parentName]
-				else:
-					parentBone = None
+				parentBone = bonesByName[parentBoneName]
+				parentDistanceSquared = sum(((PesSkeletonData.bones[parentBoneName].endPosition[i] - pesBone.startPosition[i]) ** 2 for i in range(3)))
+				if parentBoneName == pesBone.renderParent and parentDistanceSquared < 0.0000000001:
+					useConnect = True
 		else:
 			tail = (bone.globalPosition.x, -bone.globalPosition.z, bone.globalPosition.y)
 			head = (bone.localPosition.x, -bone.localPosition.z, bone.localPosition.y)
@@ -167,7 +168,6 @@ def importFmdl(context, fmdl, filename):
 		
 		if parentBone != None:
 			parentBoneID = addBone(blenderArmature, parentBone, boneIDs, bonesByName)
-			head = tuple(blenderArmature.edit_bones[parentBoneID].tail[i] for i in range(3))
 		else:
 			parentBoneID = None
 		
@@ -183,7 +183,7 @@ def importFmdl(context, fmdl, filename):
 		blenderEditBone.hide = False
 		if parentBoneID != None:
 			blenderEditBone.parent = blenderArmature.edit_bones[parentBoneID]
-			blenderEditBone.use_connect = True
+			blenderEditBone.use_connect = useConnect
 		
 		return boneID
 	
@@ -476,43 +476,15 @@ def exportFmdl(context, rootObjectName):
 		
 		if blenderBone.name in PesSkeletonData.bones:
 			pesBone = PesSkeletonData.bones[blenderBone.name]
-			bone.globalPosition = FmdlFile.FmdlFile.Vector4(
-				pesBone["x"],
-				pesBone["y"],
-				pesBone["z"],
-				1.0,
-			)
-			if pesBone["parent"] != None:
-				pesParentBone = PesSkeletonData.bones[pesBone["parent"]]
-				bone.localPosition = FmdlFile.FmdlFile.Vector4(
-					pesParentBone["x"],
-					pesParentBone["y"],
-					pesParentBone["z"],
-					0.0,
-				)
-			else:
-				bone.localPosition = FmdlFile.FmdlFile.Vector4(
-					pesBone["x"],
-					pesBone["y"],
-					pesBone["z"],
-					0.0,
-				)
-			parentName = pesBone["parent"]
+			(x, y, z) = pesBone.startPosition
+			bone.globalPosition = FmdlFile.FmdlFile.Vector4(x, y, z, 1.0)
+			bone.localPosition = FmdlFile.FmdlFile.Vector4(0.0, 0.0, 0.0, 0.0)
+			parentName = pesBone.sklParent
 		else:
 			(tailX, tailY, tailZ) = blenderBone.tail_local
 			(headX, headY, headZ) = blenderBone.head_local
-			bone.globalPosition = FmdlFile.FmdlFile.Vector4(
-				tailX,
-				tailZ,
-				-tailY,
-				1.0,
-			)
-			bone.localPosition = FmdlFile.FmdlFile.Vector4(
-				headX,
-				headZ,
-				-headY,
-				0.0,
-			)
+			bone.globalPosition = FmdlFile.FmdlFile.Vector4(headX, headZ, -headY, 1.0)
+			bone.localPosition = FmdlFile.FmdlFile.Vector4(0.0, 0.0, 0.0, 0.0)
 			if blenderBone.parent == None:
 				parentName = None
 			else:

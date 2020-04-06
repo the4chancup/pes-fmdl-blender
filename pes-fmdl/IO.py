@@ -76,7 +76,8 @@ def importFmdl(context, fmdl, filename):
 				blenderImage.filepath = filename
 				blenderImage.reload()
 			
-			blenderTexture = bpy.data.textures.new(texture.filename, type = 'IMAGE')
+			textureName = "[%s] %s" % (textureRole, texture.filename)
+			blenderTexture = bpy.data.textures.new(textureName, type = 'IMAGE')
 			blenderTexture.image = blenderImage
 			
 			if '_NRM' in textureRole:

@@ -1273,7 +1273,11 @@ class FmdlFile:
 	
 	@staticmethod
 	def addMesh(fmdl, mesh, boneIndices, materialInstanceID, levelsOfDetail, vertexPositionBuffer, vertexDataBuffer, faceBuffer):
-		(boneGroupID, boneGroupIndices) = FmdlFile.addBoneGroup(fmdl, mesh.boneGroup, boneIndices)
+		if mesh.vertexFields.hasBoneMapping:
+			(boneGroupID, boneGroupIndices) = FmdlFile.addBoneGroup(fmdl, mesh.boneGroup, boneIndices)
+		else:
+			boneGroupID = 0
+			boneGroupIndices = {}
 		
 		(
 			meshFormatAssignmentID,
@@ -1645,6 +1649,12 @@ class FmdlFile:
 	@staticmethod
 	def storeBones(fmdl, bones):
 		boneIndices = {}
+		#
+		# If there are no bones, do not create an empty bone table.
+		#
+		if len(bones) == 0:
+			return boneIndices
+		
 		boneIndex = FmdlFile.newSegment0BlockDescriptorID(fmdl, 0)
 		for bone in bones:
 			boneIndices[bone] = boneIndex

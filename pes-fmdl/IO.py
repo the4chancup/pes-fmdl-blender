@@ -83,7 +83,7 @@ def importFmdl(context, fmdl, filename):
 			if '_NRM' in textureRole:
 				blenderTexture.use_normal_map = True
 			
-			textureIDs[identifier] = blenderImage.name
+			textureIDs[identifier] = blenderTexture.name
 		
 		blenderTextureSlot = blenderMaterial.texture_slots.add()
 		blenderTextureSlot.texture = blenderTexture
@@ -966,10 +966,7 @@ def exportFmdl(context, rootObjectName):
 		return (blenderMeshObjects, blenderRootObject)
 	
 	
-	if context.active_object == None:
-		activeObjectID = None
-	else:
-		activeObjectID = bpy.data.objects.find(context.active_object.name)
+	if context.mode != 'OBJECT':
 		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
 	
 	
@@ -996,10 +993,5 @@ def exportFmdl(context, rootObjectName):
 	fmdlFile.materialInstances = materialInstances
 	fmdlFile.meshes = meshes
 	fmdlFile.meshGroups = meshGroups
-	
-	
-	
-	if activeObjectID != None:
-		setActiveObject(context, bpy.data.objects[activeObjectID])
 	
 	return fmdlFile

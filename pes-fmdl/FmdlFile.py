@@ -1760,7 +1760,9 @@ class FmdlFile:
 			0, 0, 0, -1,
 		))
 		
-		# This block needs to be there, even if empty, for compatibility with the old plugin.
-		fmdl.segment1Blocks[1] = bytearray()
+		# The old plugin needs all segment 1 blocks to be there, even if empty.
+		for i in range(4):
+			if i not in fmdl.segment1Blocks:
+				fmdl.segment1Blocks[i] = bytearray()
 		
 		fmdl.writeFile(filename)

@@ -1548,9 +1548,45 @@ class FmdlFile:
 		for vertexIndex in range(len(vertices)):
 			vertex = vertices[vertexIndex]
 			vertexIndices[vertex] = vertexIndex
+			
 			if vertex.boneMapping != None:
+				#
+				# fmdl bone mappings support at most 4 bones, and store weights as 8-bit integers.
+				# Pack the desired bone mapping into this constraint as accurately as possible:
+				# - If the desired bone mapping contains more than 4 bones, simplify it
+				#   down to 4 bones, keeping the total weight identical
+				# - Round bone weights to units of N/255, in such a way that the total bone weight
+				#   does not change more than one rounding error. In particular, a rounded total weight
+				#   of 1 must remain a total weight of 1 after elementwise rounding.
+				#
 				unorderedBones = [(boneGroupIndices[bone], weight) for (bone, weight) in vertex.boneMapping.items()]
-				bones = sorted(unorderedBones, key = (lambda pair: pair[1]), reverse = True)
+				orderedBones = sorted(unorderedBones, key = (lambda pair: pair[1]), reverse = True)
+				totalWeight = sum([weight for (boneIndex, weight) in orderedBones])
+				integralTotalWeight = int((totalWeight * 255) + 0.5)
+				selectedBones = orderedBones[0:4]
+				selectedWeight = sum([weight for (boneIndex, weight) in selectedBones])
+				
+				remainingIntegralWeight = integralTotalWeight
+				remainingSelectedWeight = selectedWeight
+				boneIndices = []
+				boneWeights = []
+				for i in range(len(selectedBones)):
+					(boneIndex, weight) = selectedBones[i]
+					if i == len(selectedBones) - 1:
+						boneWeight = remainingIntegralWeight
+					elif remainingSelectedWeight <= 0:
+						boneWeight = 0
+					else:
+						boneWeight = int((weight / remainingSelectedWeight) * remainingIntegralWeight + 0.5)
+						remainingIntegralWeight -= boneWeight
+						remainingSelectedWeight -= weight
+					
+					if boneWeight > 0:
+						boneIndices.append(boneIndex)
+						boneWeights.append(boneWeight / 255.0)
+				if len(boneIndices) < 4:
+					boneIndices += ((0,) * (4 - len(boneIndices)))
+					boneWeights += ((0.0,) * (4 - len(boneWeights)))
 			
 			for (bufferID, datumType, datumFormat, offset) in formatEntries:
 				if datumType == FmdlFile.FmdlVertexDatumType.position:
@@ -1560,10 +1596,7 @@ class FmdlFile:
 				elif datumType == FmdlFile.FmdlVertexDatumType.boneWeights:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat8:
 						raise InvalidFmdl("Unexpected format %d for vertex bone weight data" % datumFormat)
-					if len(bones) < 4:
-						value = tuple(weight for (boneIndex, weight) in bones) + (0.0,) * (4 - len(bones))
-					else:
-						value = tuple(weight for (boneIndex, weight) in bones[0:4])
+					value = boneWeights
 				elif datumType == FmdlFile.FmdlVertexDatumType.normal:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex normal data" % datumFormat)
@@ -1575,10 +1608,7 @@ class FmdlFile:
 				elif datumType == FmdlFile.FmdlVertexDatumType.boneIndices:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadInt8:
 						raise InvalidFmdl("Unexpected format %d for vertex bone index data" % datumFormat)
-					if len(bones) < 4:
-						value = tuple(boneIndex for (boneIndex, weight) in bones) + (0,) * (4 - len(bones))
-					else:
-						value = tuple(boneIndex for (boneIndex, weight) in bones[0:4])
+					value = boneIndices
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv0:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
@@ -1614,7 +1644,7 @@ class FmdlFile:
 					encodedValue = tuple(FmdlFile.encodeFloat16(x) for x in value)
 					pack_into('< 2H', buffer, position, *encodedValue)
 				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.quadFloat8:
-					encodedValue = tuple(int(x * 255) for x in value)
+					encodedValue = tuple(int(x * 255 + 0.5) for x in value)
 					pack_into('< 4B', buffer, position, *encodedValue)
 				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.quadInt8:
 					pack_into('< 4B', buffer, position, *value)

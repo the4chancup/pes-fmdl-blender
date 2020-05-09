@@ -189,10 +189,10 @@ def importFmdl(context, fmdl, filename):
 		return boneID
 	
 	def importSkeleton(context, fmdl):
-		blenderArmature = bpy.data.armatures.new("fmdl skeleton")
+		blenderArmature = bpy.data.armatures.new("Skeleton")
 		blenderArmature.show_names = True
 		
-		blenderArmatureObject = bpy.data.objects.new("fmdl skeleton", blenderArmature)
+		blenderArmatureObject = bpy.data.objects.new("Skeleton", blenderArmature)
 		armatureObjectID = blenderArmatureObject.name
 		
 		context.scene.objects.link(blenderArmatureObject)
@@ -319,22 +319,15 @@ def importFmdl(context, fmdl, filename):
 		return meshObjectID
 	
 	def importMeshes(context, fmdl, materialIDs, armatureObjectID, boneIDs):
-		def addMeshNames(meshGroup, meshNames):
-			for mesh in meshGroup.meshes:
-				meshNames[mesh] = meshGroup.name
-			for child in meshGroup.children:
-				addMeshNames(child, meshNames)
-		
 		meshNames = {}
 		for meshGroup in fmdl.meshGroups:
-			addMeshNames(meshGroup, meshNames)
-		for i in range(len(fmdl.meshes)):
-			mesh = fmdl.meshes[i]
-			if mesh in meshNames:
-				baseName = meshNames[mesh]
-			else:
-				baseName = "mesh"
-			meshNames[mesh] = "%s %s" % (baseName, i)
+			if len(meshGroup.meshes) == 1 and meshGroup.name != "":
+				meshNames[meshGroup.meshes[0]] = meshGroup.name
+		nextIndex = 0
+		for mesh in fmdl.meshes:
+			if mesh not in meshNames:
+				meshNames[mesh] = "mesh_id %s" % nextIndex
+				nextIndex += 1
 		
 		meshObjectIDs = {}
 		for mesh in fmdl.meshes:
@@ -787,8 +780,8 @@ def exportFmdl(context, rootObjectName):
 		
 		return mesh
 	
-	def exportMeshGroupAncestors(blenderObject, meshFmdlObjects, blenderRootObject, meshGroups, meshGroupFmdlObjects):
-		if blenderObject in meshGroupFmdlObjects:
+	def determineParentBlenderObject(blenderObject, blenderRootObject, parentBlenderObjects):
+		if blenderObject in parentBlenderObjects:
 			return
 		
 		parentBlenderObject = blenderObject.parent
@@ -801,18 +794,15 @@ def exportFmdl(context, rootObjectName):
 				parentBlenderObject = parentBlenderObject.parent
 		
 		if parentBlenderObject != None:
-			exportMeshGroupAncestors(parentBlenderObject, meshFmdlObjects, blenderRootObject, meshGroups, meshGroupFmdlObjects)
-			parentMeshGroup = meshGroupFmdlObjects[parentBlenderObject]
-		else:
-			parentMeshGroup = None
+			determineParentBlenderObject(parentBlenderObject, blenderRootObject, parentBlenderObjects)
 		
+		parentBlenderObjects[blenderObject] = parentBlenderObject
+	
+	def createMeshGroup(blenderObject, name, parentMeshGroup, meshGroups, meshGroupFmdlObjects):
 		meshGroup = FmdlFile.FmdlFile.MeshGroup()
-		meshGroup.name = blenderObject.name
+		meshGroup.name = name
 		# Fill in meshGroup.boundingBox later
 		meshGroup.visible = True
-		
-		if blenderObject.type == 'MESH':
-			meshGroup.meshes.append(meshFmdlObjects[blenderObject])
 		
 		if parentMeshGroup != None:
 			meshGroup.parent = parentMeshGroup
@@ -820,12 +810,41 @@ def exportFmdl(context, rootObjectName):
 		
 		meshGroups.append(meshGroup)
 		meshGroupFmdlObjects[blenderObject] = meshGroup
+		
+		return meshGroup
+	
+	def exportMeshGroup(blenderObject, parentBlenderObjects, meshGroups, meshGroupFmdlObjects):
+		if blenderObject in meshGroupFmdlObjects:
+			return meshGroupFmdlObjects[blenderObject]
+		
+		if parentBlenderObjects[blenderObject] != None:
+			parentMeshGroup = exportMeshGroup(parentBlenderObjects[blenderObject], parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
+		else:
+			parentMeshGroup = None
+		
+		return createMeshGroup(blenderObject, blenderObject.name, parentMeshGroup, meshGroups, meshGroupFmdlObjects)
+	
+	def exportMeshMeshGroup(blenderMeshObject, meshFmdlObjects, parentBlenderObjects, meshGroups, meshGroupFmdlObjects):
+		if (
+			    blenderMeshObject.name.startswith('mesh_id ')
+			and blenderMeshObject not in parentBlenderObjects.values()
+		):
+			parentMeshGroup = exportMeshGroup(parentBlenderObjects[blenderMeshObject], parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
+			meshGroup = createMeshGroup(blenderMeshObject, '', parentMeshGroup, meshGroups, meshGroupFmdlObjects)
+		else:
+			meshGroup = exportMeshGroup(blenderMeshObject, parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
+		
+		meshGroup.meshes.append(meshFmdlObjects[blenderMeshObject])
 	
 	def exportMeshGroups(blenderMeshObjects, meshFmdlObjects, blenderRootObject):
+		parentBlenderObjects = {}
+		for blenderMeshObject in blenderMeshObjects:
+			determineParentBlenderObject(blenderMeshObject, blenderRootObject, parentBlenderObjects)
+		
 		meshGroups = []
 		meshGroupFmdlObjects = {}
-		for blenderMeshObjects in meshFmdlObjects:
-			exportMeshGroupAncestors(blenderMeshObjects, meshFmdlObjects, blenderRootObject, meshGroups, meshGroupFmdlObjects)
+		for blenderMeshObject in blenderMeshObjects:
+			exportMeshMeshGroup(blenderMeshObject, meshFmdlObjects, parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
 		
 		return meshGroups
 	

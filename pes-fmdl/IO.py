@@ -1,4 +1,5 @@
 import bpy
+import mathutils
 import itertools
 import os
 import os.path
@@ -570,9 +571,10 @@ def exportFmdl(context, rootObjectName):
 		class Loop:
 			def __init__(self):
 				self.normal = None
-				self.tangent = None
 				self.color = None
 				self.uv = []
+				
+				self.tangents = []
 				self.loopIndices = []
 			
 			def matches(self, other):
@@ -588,26 +590,49 @@ def exportFmdl(context, rootObjectName):
 					if self.uv[i].v != other.uv[i].v:
 						return False
 				# Do an approximate check for normals.
-				normalDotProduct = (
-					self.normal.x * other.normal.x +
-					self.normal.y * other.normal.y +
-					self.normal.z * other.normal.z
-				)
-				if normalDotProduct < 0.999:
-					return False
-				tangentDotProduct = (
-					self.tangent.x * other.tangent.x +
-					self.tangent.y * other.tangent.y +
-					self.tangent.z * other.tangent.z
-				)
-				if tangentDotProduct < 0.9:
+				if self.normal.dot(other.normal) < 0.99:
 					return False
 				return True
 			
 			def add(self, other):
+				self.tangents += other.tangents
 				self.loopIndices += other.loopIndices
 				self.normal = self.normal.slerp(other.normal, 1.0 / len(self.loopIndices))
-				self.tangent = self.tangent.slerp(other.tangent, 1.0 / len(self.loopIndices))
+			
+			def computeTangent(self):
+				# Filter out zero tangents
+				nonzeroTangents = []
+				for tangent in self.tangents:
+					if tangent.length_squared > 0.1:
+						nonzeroTangents.append(tangent)
+				
+				if len(nonzeroTangents) == 0:
+					# Make up a tangent to avoid crashes
+					# Cross product the loop normal with any vector that is not parallel with it.
+					bestVector = None
+					for v in [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]:
+						vector = mathutils.Vector(vector)
+						if bestVector == None or abs(vector.dot(self.normal)) < abs(bestVector.dot(self.normal)):
+							bestVector = vector
+					return bestVector.cross(self.normal)
+				
+				# Average out the different tangents.
+				# In case of conflicts, bias towards the first entry in the list.
+				averageTangent = nonzeroTangents[0]
+				weight = 1
+				remaining = nonzeroTangents[1:]
+				while len(remaining) > 0:
+					skipped = []
+					for tangent in remaining:
+						if averageTangent.dot(tangent) < -0.9:
+							skipped.append(tangent)
+						else:
+							weight += 1
+							averageTangent = averageTangent.slerp(tangent, 1.0 / weight)
+					if len(skipped) == len(remaining):
+						break
+					remaining = skipped
+				return averageTangent
 		
 		vertices = []
 		for i in range(len(modifiedBlenderMesh.vertices)):
@@ -628,7 +653,8 @@ def exportFmdl(context, rootObjectName):
 			
 			loop = Loop()
 			loop.normal = blenderLoop.normal
-			loop.tangent = blenderLoop.tangent
+			loop.tangents = [blenderLoop.tangent]
+			loop.loopIndices = [i]
 			
 			if blenderColorLayer != None:
 				loop.color = [c for c in blenderColorLayer.data[i].color] + [1.0]
@@ -641,7 +667,6 @@ def exportFmdl(context, rootObjectName):
 					modifiedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[0],
 					1.0 - modifiedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[1],
 				))
-			loop.loopIndices = [i]
 			
 			found = False
 			for otherLoop in vertex.loops:
@@ -665,10 +690,11 @@ def exportFmdl(context, rootObjectName):
 					-loop.normal.y,
 					1.0,
 				)
+				tangent = loop.computeTangent()
 				fmdlVertex.tangent = FmdlFile.FmdlFile.Vector4(
-					loop.tangent.x,
-					loop.tangent.z,
-					-loop.tangent.y,
+					tangent.x,
+					tangent.z,
+					-tangent.y,
 					1.0,
 				)
 				fmdlVertex.color = loop.color

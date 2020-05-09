@@ -395,6 +395,7 @@ def importFmdl(context, fmdl, filename):
 		activeObjectID = None
 	else:
 		activeObjectID = bpy.data.objects.find(context.active_object.name)
+	if context.mode != 'OBJECT':
 		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
 	
 	
@@ -424,6 +425,8 @@ def importFmdl(context, fmdl, filename):
 	
 	
 	
+	if context.mode != 'OBJECT':
+		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
 	if activeObjectID != None:
 		setActiveObject(context, bpy.data.objects[activeObjectID])
 

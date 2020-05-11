@@ -3,7 +3,6 @@ TODO:
 Bugs:
 
 Features:
-- support automatic texture loading for files with incomplete texture path information that the compiler is able to fill in
 - automatic triangulation
 - vertex-loop preservation
 - mesh splitting

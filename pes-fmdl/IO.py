@@ -5,7 +5,7 @@ import os
 import os.path
 import re
 
-from . import FmdlFile, PesSkeletonData
+from . import FmdlFile, Ftex, PesSkeletonData
 
 
 class UnsupportedFmdl(Exception):
@@ -36,7 +36,7 @@ def importFmdl(context, fmdl, filename):
 			filenames = [filename]
 			position = filename.rfind('.')
 			if position >= 0:
-				for extension in ['dds', 'tga']:
+				for extension in ['dds', 'tga', 'ftex']:
 					modifiedFilename = filename[:position + 1] + extension
 					if modifiedFilename not in filenames:
 						filenames.append(modifiedFilename)
@@ -81,8 +81,14 @@ def importFmdl(context, fmdl, filename):
 				blenderImage.colorspace_settings.name = 'Non-Color'
 			
 			filename = findTexture(texture, textureSearchPath)
+			hasAlpha = True
 			if filename == None:
 				blenderImage.filepath = texture.directory + texture.filename
+			elif filename.lower().endswith('.ftex'):
+				blenderImage.filepath = filename
+				Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir)
+				# Many (all?) ftex files in PES have nonsensical alpha data.
+				hasAlpha = False
 			else:
 				blenderImage.filepath = filename
 				blenderImage.reload()
@@ -90,6 +96,7 @@ def importFmdl(context, fmdl, filename):
 			textureName = "[%s] %s" % (textureRole, texture.filename)
 			blenderTexture = bpy.data.textures.new(textureName, type = 'IMAGE')
 			blenderTexture.image = blenderImage
+			blenderTexture.use_alpha = hasAlpha
 			
 			if '_NRM' in textureRole:
 				blenderTexture.use_normal_map = True
@@ -107,9 +114,6 @@ def importFmdl(context, fmdl, filename):
 		if textureRole == 'Base_Tex_SRGB' or textureRole == 'Base_Tex_LIN':
 			blenderTextureSlot.use_map_diffuse = True
 			blenderTextureSlot.use_map_color_diffuse = True
-			blenderTextureSlot.use_map_specular = True
-			blenderTextureSlot.use_map_color_spec = True
-			blenderTextureSlot.use_map_emit = True
 			blenderTextureSlot.use = True
 		else:
 			blenderTextureSlot.use = False
@@ -146,6 +150,8 @@ def importFmdl(context, fmdl, filename):
 				uvMapNormals = UV_MAP_NORMALS
 			else:
 				uvMapNormals = UV_MAP_COLOR
+			
+			blenderMaterial.emit = 1.0
 			
 			for (role, texture) in materialInstance.textures:
 				addTexture(blenderMaterial, role, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath)

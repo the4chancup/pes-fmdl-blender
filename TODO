@@ -6,7 +6,6 @@ Features:
 - automatic triangulation
 - vertex-loop preservation
 - mesh splitting
-- ftex support
 - skeleton import UI
 - material import UI
 - autohide irrelevant blender panes

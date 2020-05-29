@@ -8,7 +8,7 @@ class ImportFmdl(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	"""Load a PES FMDL file"""
 	bl_idname = "import_scene.fmdl"
 	bl_label = "Import Fmdl"
-	bl_options = {'PRESET', 'REGISTER', 'UNDO'}
+	bl_options = {'REGISTER', 'UNDO'}
 	
 	import_label = "PES FMDL (.fmdl)"
 	
@@ -29,7 +29,7 @@ class ExportSceneFmdl(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
 	"""Export the entire scene as a single PES FMDL file"""
 	bl_idname = "export_scene.fmdl"
 	bl_label = "Export Fmdl"
-	bl_options = {'PRESET', 'REGISTER'}
+	bl_options = {'REGISTER'}
 	
 	export_label = "PES FMDL (.fmdl)"
 	
@@ -48,7 +48,7 @@ class ExportFmdl(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
 	"""Export an individual object as a PES FMDL file"""
 	bl_idname = "export_scene.fmdl_object"
 	bl_label = "Export Fmdl"
-	bl_options = {'PRESET', 'REGISTER'}
+	bl_options = {'REGISTER'}
 	
 	objectName = bpy.props.StringProperty("Object to export")
 	
@@ -65,17 +65,13 @@ class ExportFmdl(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
 		self.objectName = context.active_object.name
 		return bpy_extras.io_utils.ExportHelper.invoke(self, context, event)
 	
-	@staticmethod
-	def do_execute(operator, context, objectName, filename):
-		fmdlFile = IO.exportFmdl(context, objectName)
-		fmdlFile.writeFile(filename)
+	def execute(self, context):
+		fmdlFile = IO.exportFmdl(context, self.objectName)
+		fmdlFile.writeFile(self.filepath)
 		
-		operator.report({'INFO'}, "Fmdl exported successfully.") 
+		self.report({'INFO'}, "Fmdl exported successfully.") 
 		
 		return {'FINISHED'}
-	
-	def execute(self, context):
-		return ExportFmdl.do_execute(self, context, self.objectName, self.filepath)
 
 
 

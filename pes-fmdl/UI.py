@@ -1,20 +1,7 @@
 import bpy
 import bpy.props
 
-from . import Operators
-
-def importMenu():
-	if 'TOPBAR_MT_file_import' in dir(bpy.types):
-		return bpy.types.TOPBAR_MT_file_import
-	else:
-		return bpy.types.INFO_MT_file_import
-def exportMenu():
-	if 'TOPBAR_MT_file_export' in dir(bpy.types):
-		return bpy.types.TOPBAR_MT_file_export
-	else:
-		return bpy.types.INFO_MT_file_export
-
-
+from . import Ftex, Operators
 
 class FMDL_Mesh_Panel(bpy.types.Panel):
 	bl_label = "FMDL Mesh Settings"
@@ -154,6 +141,28 @@ class FMDL_Material_Panel(bpy.types.Panel):
 				"parameters"
 			)
 
+class Texture_Panel_Load_Ftex(bpy.types.Operator):
+	"""Load the FTEX texture"""
+	bl_idname = "fmdl.load_ftex"
+	bl_label = "Load FTEX texture"
+	
+	@classmethod
+	def poll(cls, context):
+		texture = context.texture
+		return (
+			texture != None and
+			texture.type == 'IMAGE' and
+			texture.image != None and
+			texture.image.filepath.lower().endswith('.ftex')
+		)
+	
+	def execute(self, context):
+		# Avoids a blender bug in which an invalid image can't be replaced with a valid one
+		context.texture.image_user.use_auto_refresh = context.texture.image_user.use_auto_refresh
+		
+		Ftex.blenderImageLoadFtex(context.texture.image, bpy.app.tempdir)
+		return {'FINISHED'}
+
 class FMDL_Texture_Panel(bpy.types.Panel):
 	bl_label = "FMDL Texture Settings"
 	bl_space_type = "PROPERTIES"
@@ -176,7 +185,7 @@ class FMDL_Scene_Panel_FMDL_Compose(bpy.types.Operator):
 	"""Enable separate exporting of the active object"""
 	bl_idname = "fmdl.compose_exportable"
 	bl_label = "Compose Fmdl"
-	bl_options = {'PRESET', 'UNDO'}
+	bl_options = {'UNDO'}
 	
 	@classmethod
 	def poll(cls, context):
@@ -191,7 +200,7 @@ class FMDL_Scene_Panel_FMDL_Remove(bpy.types.Operator):
 	"""Disable separate exporting"""
 	bl_idname = "fmdl.remove_exportable"
 	bl_label = "Remove"
-	bl_options = {'PRESET', 'UNDO'}
+	bl_options = {'UNDO'}
 	
 	objectName = bpy.props.StringProperty(name = "Object to export")
 	
@@ -203,23 +212,21 @@ class FMDL_Scene_Panel_FMDL_Export(bpy.types.Operator):
 	"""Export as PES FMDL file"""
 	bl_idname = "fmdl.export_listed_object"
 	bl_label = "Export Fmdl"
-	bl_options = {'PRESET'}
 	
 	objectName = bpy.props.StringProperty(name = "Object to export")
 	
 	def execute(self, context):
-		return Operators.ExportFmdl.do_execute(
-			self,
-			context,
-			self.objectName,
-			context.scene.objects[self.objectName].fmdl_filename
+		return bpy.ops.export_scene.fmdl_object(
+			context.copy(),
+			objectName = self.objectName,
+			filepath = context.scene.objects[self.objectName].fmdl_filename
 		)
 
 class FMDL_Scene_Panel_FMDL_Select_Filename(bpy.types.Operator):
 	"""Select a filename to export this FMDL file"""
 	bl_idname = "fmdl.select_filename"
 	bl_label = "Select Filename"
-	bl_options = {'PRESET', 'UNDO'}
+	bl_options = {'UNDO'}
 	
 	objectName = bpy.props.StringProperty(name = "Object to export")
 	filepath = bpy.props.StringProperty(subtype = 'FILE_PATH')
@@ -284,6 +291,9 @@ def FMDL_Import_MenuItem(self, context):
 def FMDL_Export_MenuItem(self, context):
 	self.layout.operator(Operators.ExportSceneFmdl.bl_idname, text=Operators.ExportSceneFmdl.export_label)
 
+def FMDL_Load_Ftex_Button(self, context):
+	self.layout.operator(Texture_Panel_Load_Ftex.bl_idname)
+
 
 
 classes = [
@@ -294,6 +304,7 @@ classes = [
 	Material_Parameter_List_movedown,
 	Material_Parameter_Name_List,
 	FMDL_Material_Panel,
+	Texture_Panel_Load_Ftex,
 	FMDL_Texture_Panel,
 	FMDL_Scene_Panel_FMDL_Compose,
 	FMDL_Scene_Panel_FMDL_Remove,
@@ -305,11 +316,13 @@ classes = [
 def register():
 	for c in classes:
 		bpy.utils.register_class(c)
-	importMenu().append(FMDL_Import_MenuItem)
-	exportMenu().append(FMDL_Export_MenuItem)
+	bpy.types.INFO_MT_file_import.append(FMDL_Import_MenuItem)
+	bpy.types.INFO_MT_file_export.append(FMDL_Export_MenuItem)
+	bpy.types.TEXTURE_PT_image.append(FMDL_Load_Ftex_Button)
 
 def unregister():
-	exportMenu().remove(FMDL_Export_MenuItem)
-	importMenu().remove(FMDL_Import_MenuItem)
+	bpy.types.TEXTURE_PT_image.remove(FMDL_Load_Ftex_Button)
+	bpy.types.INFO_MT_file_export.remove(FMDL_Export_MenuItem)
+	bpy.types.INFO_MT_file_import.remove(FMDL_Import_MenuItem)
 	for c in classes[::-1]:
 		bpy.utils.unregister_class(c)

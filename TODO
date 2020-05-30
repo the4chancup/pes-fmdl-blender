@@ -3,10 +3,13 @@ TODO:
 Bugs:
 
 Features:
+- custom bounding-box editing
+- more practical bone group editing
 - vertex-loop preservation
 - mesh splitting
 - skeleton import UI
 - material import UI
-- autohide irrelevant blender panes
+
+Maybe at some point:
 - blender 2.81 support
 - custom bones / hand bones

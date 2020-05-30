@@ -3,8 +3,7 @@ bl_info = {
 	"author": "foreground",
 	"blender": (2, 79, 0),
 	"category": "Import-Export",
-	"version": (0, 2, 4),
-	"warning": "EARLY TEST VERSION",
+	"version": (0, 3, 0),
 }
 
 import bpy

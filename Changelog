@@ -1,0 +1,32 @@
+0.3.0  2020-05-30
+
+	* Added support for automatic triangulation.
+	* Added support for ftex textures.
+	* Improved automatic texture loading.
+	* Improved vertex tangent computation.
+	* Improved mesh naming scheme.
+	* Fixed bone weight normalization for vertices mapped to more than four bones.
+
+0.2.4  2020-04-07
+
+	* Minor bugfix.
+
+0.2.3  2020-04-07
+
+	* Improved texture slot naming.
+
+0.2.2  2020-04-06
+
+	* Replaced broken PES skeleton reconstruction logic with mostly accurate version.
+
+0.2.1  2020-02-24
+
+	* Support for multiple FMDL files in a single scene.
+
+0.2.0  2020-02-23
+
+	* First release suitable for public testing.
+
+0.1.0  2020-02-13
+
+	* Initial small-audience testing version.

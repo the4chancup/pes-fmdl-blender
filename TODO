@@ -3,7 +3,6 @@ TODO:
 Bugs:
 
 Features:
-- automatic triangulation
 - vertex-loop preservation
 - mesh splitting
 - skeleton import UI

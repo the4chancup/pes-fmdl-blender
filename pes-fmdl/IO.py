@@ -1,3 +1,4 @@
+import bmesh
 import bpy
 import mathutils
 import itertools
@@ -572,9 +573,13 @@ def exportFmdl(context, rootObjectName):
 		if max(loopTotals) != 3:
 			#
 			# calc_tangents() only works on triangulated meshes
-			# TODO: optionally triangulate
 			#
-			raise InvalidFmdl("Mesh '%s' contains non-triangle polygons." % name)
+			
+			blenderBmesh = bmesh.new()
+			blenderBmesh.from_mesh(modifiedBlenderMesh, face_normals = False)
+			bmesh.ops.triangulate(blenderBmesh, faces = blenderBmesh.faces[:], quad_method = 0, ngon_method = 0)
+			blenderBmesh.to_mesh(modifiedBlenderMesh)
+			blenderBmesh.free()
 		
 		modifiedBlenderMesh.use_auto_smooth = True
 		modifiedBlenderMesh.calc_tangents(uvLayerColor)

@@ -4,6 +4,33 @@ import bpy_extras.io_utils
 
 from . import FmdlFile, Ftex, IO
 
+
+
+vertexGroupSummaryCache = {}
+
+def vertexGroupSummaryGet(objectName):
+	global vertexGroupSummaryCache
+	if objectName not in vertexGroupSummaryCache:
+		return None
+	return vertexGroupSummaryCache[objectName]
+
+def vertexGroupSummarySet(objectName, value):
+	global vertexGroupSummaryCache
+	vertexGroupSummaryCache[objectName] = value
+
+def vertexGroupSummaryRemove(objectName):
+	global vertexGroupSummaryCache
+	if objectName in vertexGroupSummaryCache:
+		del vertexGroupSummaryCache[objectName]
+
+def vertexGroupSummaryCleanup(objectNames):
+	global vertexGroupSummaryCache
+	for objectName in list(vertexGroupSummaryCache.keys()):
+		if objectName not in objectNames:
+			del vertexGroupSummaryCache[objectName]
+
+
+
 class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	"""Load a PES FMDL file"""
 	bl_idname = "import_scene.fmdl"
@@ -183,6 +210,262 @@ class FMDL_Scene_Panel(bpy.types.Panel):
 				row3.enabled = False
 
 
+
+@bpy.app.handlers.persistent
+def FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates(scene):
+	meshObjectNames = set()
+	for object in scene.objects:
+		if object.type == 'MESH':
+			if object.is_updated_data:
+				vertexGroupSummaryRemove(object.name)
+			else:
+				meshObjectNames.add(object.name)
+	vertexGroupSummaryCleanup(meshObjectNames)
+
+def FMDL_Mesh_BoneGroup_Bone_get_enabled(bone):
+	return bone.name in bpy.context.active_object.vertex_groups
+
+def FMDL_Mesh_BoneGroup_Bone_set_enabled(bone, enabled):
+	vertex_groups = bpy.context.active_object.vertex_groups
+	if enabled and bone.name not in vertex_groups:
+		vertex_groups.new(bone.name)
+		vertexGroupSummaryRemove(bpy.context.active_object.name)
+	if not enabled and bone.name in vertex_groups:
+		vertex_groups.remove(vertex_groups[bone.name])
+		vertexGroupSummaryRemove(bpy.context.active_object.name)
+
+class VertexGroupUsageSummary:
+	def __init__(self):
+		self.vertices = {}
+		self.totalWeights = {}
+	
+	@staticmethod
+	def meshObjectActiveArmature(meshObject):
+		activeArmature = None
+		for modifier in meshObject.modifiers:
+			if modifier.type == 'ARMATURE':
+				if activeArmature != None:
+					return None
+				activeArmature = modifier.object.data
+		return activeArmature
+	
+	@staticmethod
+	def compute(meshObject, armature):
+		if vertexGroupSummaryGet(meshObject.name) != None:
+			return
+		summary = VertexGroupUsageSummary()
+		for bone in armature.bones:
+			summary.vertices[bone.name] = 0
+			summary.totalWeights[bone.name] = 0.0
+		vertexGroupNames = {}
+		for vertexGroup in meshObject.vertex_groups:
+			vertexGroupNames[vertexGroup.index] = vertexGroup.name
+		for vertex in meshObject.data.vertices:
+			for groupElement in vertex.groups:
+				if groupElement.group not in vertexGroupNames:
+					continue
+				groupName = vertexGroupNames[groupElement.group]
+				if groupName not in summary.vertices:
+					continue
+				summary.vertices[groupName] += 1
+				summary.totalWeights[groupName] += groupElement.weight
+		vertexGroupSummarySet(meshObject.name, summary)
+
+class FMDL_Mesh_BoneGroup_List(bpy.types.UIList):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+		armature = data
+		meshObject = active_data
+		
+		row = layout.row(align = True)
+		if meshObject.mode == 'OBJECT' and meshObject.data.fmdl_show_vertex_group_details:
+			vertexGroupSummary = vertexGroupSummaryGet(meshObject.name)
+			vertexCount = vertexGroupSummary.vertices[item.name]
+			totalWeight = vertexGroupSummary.totalWeights[item.name]
+			
+			if meshObject.data.fmdl_show_vertex_group_vertices and meshObject.data.fmdl_show_vertex_group_weights:
+				mainRow = row.split(percentage = 0.55, align = True)
+			elif meshObject.data.fmdl_show_vertex_group_vertices or meshObject.data.fmdl_show_vertex_group_weights:
+				mainRow = row.split(percentage = 0.7, align = True)
+			else:
+				mainRow = row.split(percentage = 1.0, align = True)
+			
+			checkboxNameRow = mainRow.row(align = True)
+			checkboxRow = checkboxNameRow.row()
+			checkboxRow.enabled = (not meshObject.data.fmdl_lock_nonempty_vertex_groups or vertexCount == 0)
+			checkboxRow.prop(item, 'fmdl_bone_in_active_mesh', text = '')
+			checkboxNameRow.label(text = item.name)
+			
+			if meshObject.data.fmdl_show_vertex_group_vertices and meshObject.data.fmdl_show_vertex_group_weights:
+				verticesRow = mainRow.split(percentage = 0.45, align = True)
+				verticesRow.alignment = 'RIGHT'
+			elif meshObject.data.fmdl_show_vertex_group_vertices or meshObject.data.fmdl_show_vertex_group_weights:
+				verticesRow = mainRow.split(percentage = 1.0, align = True)
+				verticesRow.alignment = 'RIGHT'
+			
+			if meshObject.data.fmdl_show_vertex_group_vertices:
+				verticesRow.label("%d v" % vertexCount)
+			if meshObject.data.fmdl_show_vertex_group_weights:
+				verticesRow.label("%.1f w" % totalWeight)
+		else:
+			row.prop(item, 'fmdl_bone_in_active_mesh', text = '')
+			row.label(text = item.name)
+
+class FMDL_Mesh_BoneGroup_RemoveUnused(bpy.types.Operator):
+	"""Remove bones not bound to any vertices"""
+	bl_idname = "fmdl.bonegroup_remove_unused"
+	bl_label = "Remove Unused"
+	bl_options = {'UNDO'}
+	
+	@classmethod
+	def poll(cls, context):
+		return (
+			    context.active_object != None
+			and context.active_object.type == 'MESH'
+			and context.active_object.mode == 'OBJECT'
+			and VertexGroupUsageSummary.meshObjectActiveArmature(context.active_object) != None
+		)
+	
+	def execute(self, context):
+		armature = VertexGroupUsageSummary.meshObjectActiveArmature(context.active_object)
+		VertexGroupUsageSummary.compute(context.active_object, armature)
+		vertexGroupSummary = vertexGroupSummaryGet(context.active_object.name)
+		for (boneName, vertexCount) in vertexGroupSummary.vertices.items():
+			if vertexCount == 0 and boneName in context.active_object.vertex_groups:
+				context.active_object.vertex_groups.remove(context.active_object.vertex_groups[boneName])
+		vertexGroupSummaryRemove(context.active_object.name)
+		return {'FINISHED'}
+
+class FMDL_Mesh_BoneGroup_Refresh(bpy.types.Operator):
+	"""Refresh bone usage details"""
+	bl_idname = "fmdl.bonegroup_refresh"
+	bl_label = "Refresh"
+	bl_options = set()
+	
+	@classmethod
+	def poll(cls, context):
+		return (
+			    context.active_object != None
+			and context.active_object.type == 'MESH'
+			and context.active_object.mode == 'OBJECT'
+		)
+	
+	def execute(self, context):
+		vertexGroupSummaryRemove(context.active_object.name)
+		return {'FINISHED'}
+
+class FMDL_Mesh_BoneGroup_CopyFromSelected(bpy.types.Operator):
+	"""Copy bone group from selected mesh"""
+	bl_idname = "fmdl.bonegroup_copy_from_selected"
+	bl_label = "Copy Bone Group from Selected"
+	bl_options = {'UNDO'}
+	
+	@staticmethod
+	def selectedObject(context, requiredType):
+		differentObject = None
+		for object in context.selected_objects:
+			if object.name != context.active_object.name and object.type == requiredType:
+				if differentObject != None:
+					return None
+				differentObject = object
+		return differentObject
+	
+	@classmethod
+	def poll(cls, context):
+		return (
+			    context.active_object != None
+			and context.active_object.type == 'MESH'
+			and context.active_object.mode == 'OBJECT'
+			and VertexGroupUsageSummary.meshObjectActiveArmature(context.active_object) != None
+			and FMDL_Mesh_BoneGroup_CopyFromSelected.selectedObject(context, 'MESH') != None
+		)
+	
+	def execute(self, context):
+		selectedMeshObject = FMDL_Mesh_BoneGroup_CopyFromSelected.selectedObject(context, 'MESH')
+		desiredBones = selectedMeshObject.vertex_groups.keys()
+		armature = VertexGroupUsageSummary.meshObjectActiveArmature(context.active_object)
+		VertexGroupUsageSummary.compute(context.active_object, armature)
+		vertexGroupSummary = vertexGroupSummaryGet(context.active_object.name)
+		for boneName in context.active_object.vertex_groups.keys():
+			if (
+				    boneName in vertexGroupSummary.vertices
+				and vertexGroupSummary.vertices[boneName] == 0
+				and boneName not in desiredBones
+			):
+				context.active_object.vertex_groups.remove(context.active_object.vertex_groups[boneName])
+		for boneName in desiredBones:
+			if (
+				    boneName not in context.active_object.vertex_groups
+				and boneName in armature.bones
+			):
+				context.active_object.vertex_groups.new(boneName)
+		vertexGroupSummaryRemove(context.active_object.name)
+		return {'FINISHED'}
+
+class FMDL_Mesh_BoneGroup_Specials(bpy.types.Menu):
+	bl_label = "Bone Group operations"
+	
+	def draw(self, context):
+		self.layout.operator(FMDL_Mesh_BoneGroup_RemoveUnused.bl_idname, icon = 'X')
+		self.layout.operator(FMDL_Mesh_BoneGroup_Refresh.bl_idname, icon = 'FILE_REFRESH')
+		self.layout.operator(FMDL_Mesh_BoneGroup_CopyFromSelected.bl_idname, icon = 'LINK_AREA')
+
+class FMDL_Mesh_BoneGroup_Panel(bpy.types.Panel):
+	bl_label = "FMDL Bone Group"
+	bl_space_type = "PROPERTIES"
+	bl_region_type = "WINDOW"
+	bl_context = "data"
+	
+	@classmethod
+	def poll(cls, context):
+		return (
+			    context.mesh != None
+			and context.object != None
+			and VertexGroupUsageSummary.meshObjectActiveArmature(context.object) != None
+		)
+	
+	def draw(self, context):
+		meshObject = context.object
+		mesh = meshObject.data
+		armature = VertexGroupUsageSummary.meshObjectActiveArmature(meshObject)
+		
+		computeDetails = (meshObject.mode == 'OBJECT' and mesh.fmdl_show_vertex_group_details)
+		if computeDetails:
+			VertexGroupUsageSummary.compute(meshObject, armature)
+		
+		self.layout.template_list(
+			FMDL_Mesh_BoneGroup_List.__name__,
+			"FMDL_Mesh_BoneGroup_List",
+			armature,
+			"bones",
+			meshObject,
+			"fmdl_bone_active",
+			rows = 8
+		)
+		
+		groupSize = len(meshObject.vertex_groups)
+		
+		summaryRow = self.layout.row()
+		summaryRow.label("Bone group size: %s/32%s" % (groupSize, ' (!!)' if groupSize > 32 else ''))
+		summaryRow.menu("FMDL_Mesh_BoneGroup_Specials", icon = 'DOWNARROW_HLT', text = "")
+		
+		detailLayout = self.layout.row()
+		detailLayoutSplit = detailLayout.split(percentage = 0.6)
+		leftColumn = detailLayoutSplit.column()
+		rightColumn = detailLayoutSplit.column()
+		
+		detailRow = leftColumn.row()
+		detailRow.enabled = (meshObject.mode == 'OBJECT')
+		detailRow.prop(mesh, 'fmdl_show_vertex_group_details')
+		lockRow = leftColumn.row()
+		lockRow.enabled = computeDetails
+		lockRow.prop(mesh, 'fmdl_lock_nonempty_vertex_groups')
+		
+		verticesRow = rightColumn.row()
+		verticesRow.enabled = computeDetails
+		verticesRow.prop(mesh, 'fmdl_show_vertex_group_vertices')
+		weightsRow = rightColumn.row()
+		weightsRow.enabled = computeDetails
+		weightsRow.prop(mesh, 'fmdl_show_vertex_group_weights')
 
 class FMDL_Mesh_Panel(bpy.types.Panel):
 	bl_label = "FMDL Mesh Settings"
@@ -381,6 +664,12 @@ classes = [
 	FMDL_Scene_Panel_FMDL_Select_Filename,
 	FMDL_Scene_Panel,
 	
+	FMDL_Mesh_BoneGroup_List,
+	FMDL_Mesh_BoneGroup_RemoveUnused,
+	FMDL_Mesh_BoneGroup_Refresh,
+	FMDL_Mesh_BoneGroup_CopyFromSelected,
+	FMDL_Mesh_BoneGroup_Specials,
+	FMDL_Mesh_BoneGroup_Panel,
 	FMDL_Mesh_Panel,
 	
 	FMDL_Material_Parameter_List_Add,
@@ -394,9 +683,21 @@ classes = [
 	FMDL_Texture_Panel,
 ]
 
+
+
 def register():
 	bpy.types.Object.fmdl_file = bpy.props.BoolProperty(name = "Is FMDL file", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_filename = bpy.props.StringProperty(name = "FMDL filename", options = {'SKIP_SAVE'})
+	bpy.types.Bone.fmdl_bone_in_active_mesh = bpy.props.BoolProperty(name = "Enabled",
+		get = FMDL_Mesh_BoneGroup_Bone_get_enabled,
+		set = FMDL_Mesh_BoneGroup_Bone_set_enabled,
+		options = {'SKIP_SAVE'}
+	)
+	bpy.types.Object.fmdl_bone_active = bpy.props.IntProperty(name = "FMDL_Mesh_BoneGroup_List index", default = -1, options = {'SKIP_SAVE'})
+	bpy.types.Mesh.fmdl_show_vertex_group_details = bpy.props.BoolProperty(name = "Show usage details", default = False, options = {'SKIP_SAVE'})
+	bpy.types.Mesh.fmdl_lock_nonempty_vertex_groups = bpy.props.BoolProperty(name = "Lock in-use bone groups", default = True, options = {'SKIP_SAVE'})
+	bpy.types.Mesh.fmdl_show_vertex_group_vertices = bpy.props.BoolProperty(name = "Show vertices [v]", default = True, options = {'SKIP_SAVE'})
+	bpy.types.Mesh.fmdl_show_vertex_group_weights = bpy.props.BoolProperty(name = "Show weights [w]", default = True, options = {'SKIP_SAVE'})
 	bpy.types.Material.fmdl_material_parameter_active = bpy.props.IntProperty(name = "FMDL_Material_Parameter_Name_List index", default = -1, options = {'SKIP_SAVE'})
 	
 	for c in classes:
@@ -405,8 +706,12 @@ def register():
 	bpy.types.INFO_MT_file_import.append(FMDL_Scene_FMDL_Import_MenuItem)
 	bpy.types.INFO_MT_file_export.append(FMDL_Scene_FMDL_Export_MenuItem)
 	bpy.types.TEXTURE_PT_image.append(FMDL_Texture_Load_Ftex_Button)
+	
+	bpy.app.handlers.scene_update_post.append(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
 
 def unregister():
+	bpy.app.handlers.scene_update_post.remove(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
+	
 	bpy.types.TEXTURE_PT_image.remove(FMDL_Texture_Load_Ftex_Button)
 	bpy.types.INFO_MT_file_export.remove(FMDL_Scene_FMDL_Export_MenuItem)
 	bpy.types.INFO_MT_file_import.remove(FMDL_Scene_FMDL_Import_MenuItem)

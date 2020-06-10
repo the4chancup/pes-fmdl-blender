@@ -1,15 +1,17 @@
 TODO:
 
 Bugs:
+- warn when exporting meshes with too many vertices in it
+- warn when exporting meshes with too large bone groups
 
 Features:
 - custom bounding-box editing
-- more practical bone group editing
 - vertex-loop preservation
 - mesh splitting
 - skeleton import UI
 - material import UI
 
 Maybe at some point:
+- export summary infobox
 - blender 2.81 support
 - custom bones / hand bones

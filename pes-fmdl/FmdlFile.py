@@ -943,6 +943,7 @@ class FmdlFile:
 		if 12 not in fmdl.segment0Blocks:
 			return []
 		
+		lastStringPosition = 0
 		strings = []
 		for definition in fmdl.segment0Blocks[12]:
 			(
@@ -965,7 +966,45 @@ class FmdlFile:
 				raise InvalidFmdl("Invalid unicode in string at location %d" % offset)
 			
 			strings.append(string)
-		return strings
+			
+			if blockID == 3 and lastStringPosition < length + offset:
+				lastStringPosition = length + offset
+		
+		extensionHeaderPosition = lastStringPosition + 1
+		extensionHeaders = None
+		if extensionHeaderPosition < len(fmdl.segment1Blocks[3]):
+			#
+			# Read nul-terminated extension header.
+			#
+			block = fmdl.segment1Blocks[3]
+			extensionHeaderEnd = extensionHeaderPosition
+			while extensionHeaderEnd < len(block) and block[extensionHeaderEnd] != 0:
+				extensionHeaderEnd += 1
+			extensionHeaderString = str(block[extensionHeaderPosition : extensionHeaderEnd], 'utf-8')
+			recognitionString = 'X-FMDL-Extensions:'
+			if extensionHeaderString[0:len(recognitionString)].lower() == recognitionString.lower():
+				#
+				# HTTP-style headers, no continuations.
+				# key:value pairs, separated by newlines, optional whitespace separation
+				#
+				# value is parsed to a comma-separated list, further parsing elsewhere
+				#
+				extensionHeaders = {}
+				lines = extensionHeaderString.split('\n')
+				for line in lines:
+					position = line.find(':')
+					if position == -1:
+						continue
+					key = line[0:position].strip().lower()
+					value = line[position + 1:].strip()
+					if ' ' in key or '\n' in key or '\r' in key or '\t' in key:
+						continue
+					if key in extensionHeaders:
+						continue
+					extensionHeaders[key] = []
+					for v in value.split(','):
+						extensionHeaders[key].append(v.strip())
+		return (strings, extensionHeaders)
 	
 	@staticmethod
 	def parseBoundingBoxes(fmdl):
@@ -1182,7 +1221,7 @@ class FmdlFile:
 		fmdl = FmdlContainer()
 		fmdl.readFile(filename)
 		
-		strings = self.parseStrings(fmdl)
+		(strings, extensionHeaders) = self.parseStrings(fmdl)
 		boundingBoxes = self.parseBoundingBoxes(fmdl)
 		bones = self.parseBones(fmdl, strings, boundingBoxes)
 		materialInstances = self.parseMaterialInstances(fmdl, strings)
@@ -1677,6 +1716,37 @@ class FmdlFile:
 		return firstFaceVertexID
 	
 	@staticmethod
+	def addExtensionHeaders(fmdl, extensionHeaders):
+		extensionsHeader = 'X-FMDL-Extensions'
+		flattenedExtensions = []
+		otherHeaders = {}
+		for key in extensionHeaders:
+			if key.lower() == extensionsHeader.lower():
+				flattenedExtensions += extensionHeaders[key]
+			else:
+				otherHeaders[key] = extensionHeaders[key]
+		
+		if len(otherHeaders) == 0 and len(flattenedExtensions) == 0:
+			return
+		
+		def renderValue(value):
+			output = ''
+			for v in value:
+				if len(output) > 0:
+					output += ", "
+				output += str(v)
+			return output
+		
+		extensionString = ''
+		extensionString += extensionsHeader + ": " + renderValue(flattenedExtensions) + "\n"
+		for key in otherHeaders:
+			extensionString += key + ": " + renderValue(otherHeaders[key]) + "\n"
+		
+		encoded = bytes(extensionString, 'utf-8')
+		fmdl.segment1Blocks[3] += encoded
+		fmdl.segment1Blocks[3] += b'\0'
+	
+	@staticmethod
 	def storeBones(fmdl, bones):
 		boneIndices = {}
 		#
@@ -1747,6 +1817,7 @@ class FmdlFile:
 	def writeFile(self, filename):
 		fmdl = FmdlContainer()
 		
+		extensionHeaders = {'X-FMDL-Extensions': []}
 		self.addString(fmdl, '')
 		boneIndices = self.storeBones(fmdl, self.bones)
 		materialInstanceIndices = self.storeMaterialInstances(fmdl, self.materialInstances)
@@ -1764,5 +1835,7 @@ class FmdlFile:
 		for i in range(4):
 			if i not in fmdl.segment1Blocks:
 				fmdl.segment1Blocks[i] = bytearray()
+		
+		self.addExtensionHeaders(fmdl, extensionHeaders)
 		
 		fmdl.writeFile(filename)

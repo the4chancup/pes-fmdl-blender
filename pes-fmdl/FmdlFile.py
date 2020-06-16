@@ -304,6 +304,16 @@ class FmdlFile:
 			self.uvCount = 0
 			self.uvEqualities = {}
 	
+	class VertexEncoding:
+		def __init__(self):
+			self.vertex = None
+			self.position = None
+			self.normal = None
+			self.tangent = None
+			self.color = None
+			self.boneMapping = None
+			self.uv = []
+	
 	class Mesh:
 		def __init__(self):
 			self.vertices = []
@@ -313,6 +323,8 @@ class FmdlFile:
 			self.alphaEnum = None
 			self.shadowEnum = None
 			self.vertexFields = None
+			# extension fields
+			self.vertexEncoding = None
 	
 	class MeshGroup:
 		def __init__(self):
@@ -671,7 +683,7 @@ class FmdlFile:
 				raise InvalidFmdl("Invalid face index ID %d referenced by mesh" % firstFaceIndexID)
 			(lodFirstFaceVertexIndex, lodFaceVertexCount) = faceIndices[firstFaceIndexID]
 			
-			vertices = FmdlFile.parseVertices(fmdl, meshFormats[meshFormatID], boneGroup, vertexCount)
+			(vertices, vertexEncodings) = FmdlFile.parseVertices(fmdl, meshFormats[meshFormatID], boneGroup, vertexCount)
 			faces = FmdlFile.parseFaces(fmdl, bufferOffsets[2], firstFaceVertexIndex + lodFirstFaceVertexIndex, lodFaceVertexCount, vertices)
 			
 			mesh = FmdlFile.Mesh()
@@ -682,6 +694,7 @@ class FmdlFile:
 			mesh.alphaEnum = alphaEnum
 			mesh.shadowEnum = shadowEnum
 			mesh.vertexFields = vertexFields
+			mesh.vertexEncoding = vertexEncodings
 			meshes.append(mesh)
 		return meshes
 	
@@ -1019,8 +1032,8 @@ class FmdlFile:
 			) = unpack('< 8f', definition)
 			boundingBoxes.append(
 				FmdlFile.BoundingBox(
-					FmdlFile.Vector4(maxX, maxY, maxZ, maxW),
 					FmdlFile.Vector4(minX, minY, minZ, minW),
+					FmdlFile.Vector4(maxX, maxY, maxZ, maxW),
 				)
 			)
 		return boundingBoxes
@@ -1102,91 +1115,88 @@ class FmdlFile:
 		vertexBuffer = fmdl.segment1Blocks[2]
 		
 		vertices = []
+		vertexEncodings = []
 		for vertexIndex in range(vertexCount):
 			vertex = FmdlFile.Vertex()
+			vertexEncoding = FmdlFile.VertexEncoding()
+			vertexEncoding.vertex = vertex
 			
-			uv0 = None
-			uv1 = None
-			uv2 = None
-			uv3 = None
+			uvEncoding = [None for i in range(4)]
+			uv = [None for i in range(4)]
 			boneWeights = None
 			boneIndices = None
 			
 			for (datumType, datumFormat, offset, increment) in format:
 				position = offset + vertexIndex * increment
 				
-				if datumFormat == FmdlFile.FmdlVertexDatumFormat.tripleFloat32:
-					value = unpack_from('< 3f', vertexBuffer, position)
-				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.quadFloat16:
-					encodedValue = unpack_from('< 4H', vertexBuffer, position)
-					value = [FmdlFile.parseFloat16(x) for x in encodedValue]
-				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
-					encodedValue = unpack_from('< 2H', vertexBuffer, position)
-					value = [FmdlFile.parseFloat16(x) for x in encodedValue]
-				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.quadFloat8:
-					encodedValue = unpack_from('< 4B', vertexBuffer, position)
-					value = [x / 255.0 for x in encodedValue]
-				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.quadInt8:
-					value = unpack_from('< 4B', vertexBuffer, position)
-				else:
-					raise InvalidFmdl("Unexpected vertex datum format %d" % (datumFormat))
-				
 				if datumType == FmdlFile.FmdlVertexDatumType.position:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.tripleFloat32:
 						raise InvalidFmdl("Unexpected format %d for vertex position data" % datumFormat)
+					vertexEncoding.position = vertexBuffer[position : position + 12]
+					value = unpack('< 3f', vertexEncoding.position)
 					vertex.position = FmdlFile.Vector3(value[0], value[1], value[2])
 				elif datumType == FmdlFile.FmdlVertexDatumType.boneWeights:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat8:
 						raise InvalidFmdl("Unexpected format %d for vertex bone weight data" % datumFormat)
-					boneWeights = value
+					boneWeights = unpack('< 4B', vertexBuffer[position : position + 4])
 				elif datumType == FmdlFile.FmdlVertexDatumType.normal:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex normal data" % datumFormat)
+					vertexEncoding.normal = vertexBuffer[position : position + 8]
+					value = [FmdlFile.parseFloat16(x) for x in unpack('< 4H', vertexEncoding.normal)]
 					vertex.normal = FmdlFile.Vector4(value[0], value[1], value[2], value[3])
 				elif datumType == FmdlFile.FmdlVertexDatumType.color:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat8:
 						raise InvalidFmdl("Unexpected format %d for vertex color data" % datumFormat)
-					vertex.color = value
+					vertexEncoding.color = vertexBuffer[position : position + 4]
+					vertex.color = [x / 255.0 for x in unpack('< 4B', vertexEncoding.color)]
 				elif datumType == FmdlFile.FmdlVertexDatumType.boneIndices:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadInt8:
 						raise InvalidFmdl("Unexpected format %d for vertex bone index data" % datumFormat)
-					boneIndices = value
+					boneIndices = unpack('< 4B', vertexBuffer[position : position + 4])
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv0:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					uv0 = FmdlFile.Vector2(value[0], value[1])
+					uvEncoding[0] = vertexBuffer[position : position + 4]
+					value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[0])]
+					uv[0] = FmdlFile.Vector2(value[0], value[1])
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv1:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					uv1 = FmdlFile.Vector2(value[0], value[1])
+					uvEncoding[1] = vertexBuffer[position : position + 4]
+					value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[1])]
+					uv[1] = FmdlFile.Vector2(value[0], value[1])
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv2:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					uv2 = FmdlFile.Vector2(value[0], value[1])
+					uvEncoding[2] = vertexBuffer[position : position + 4]
+					value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[2])]
+					uv[2] = FmdlFile.Vector2(value[0], value[1])
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv3:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					uv3 = FmdlFile.Vector2(value[0], value[1])
+					uvEncoding[3] = vertexBuffer[position : position + 4]
+					value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[3])]
+					uv[3] = FmdlFile.Vector2(value[0], value[1])
 				elif datumType == FmdlFile.FmdlVertexDatumType.tangent:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex tangent data" % datumFormat)
+					vertexEncoding.tangent = vertexBuffer[position : position + 8]
+					value = [FmdlFile.parseFloat16(x) for x in unpack('< 4H', vertexEncoding.tangent)]
 					vertex.tangent = FmdlFile.Vector4(value[0], value[1], value[2], value[3])
 				else:
 					raise InvalidFmdl("Unexpected vertex datum type %d" % datumType)
 			
-			if uv0 != None:
-				vertex.uv.append(uv0)
-			if uv1 != None:
-				vertex.uv.append(uv1)
-			if uv2 != None:
-				vertex.uv.append(uv2)
-			if uv3 != None:
-				vertex.uv.append(uv3)
+			for i in range(4):
+				if uv[i] != None:
+					vertex.uv.append(uv[i])
+					vertexEncoding.uv.append(uvEncoding[i])
 			
 			if boneWeights != None:
-				boneMapping = {}
+				vertex.boneMapping = {}
+				vertexEncoding.boneMapping = []
 				for i in range(4):
-					if boneWeights[i] > 0.000001:
+					if boneWeights[i] > 0:
 						if not boneIndices[i] < len(boneGroup.bones):
 							#
 							# This happens a fair few times in real models.
@@ -1195,11 +1205,13 @@ class FmdlFile:
 							# WARNING
 							#raise InvalidFmdl("Invalid bone ID %d referenced by vertex" % boneIndices[i])
 							continue
-						boneMapping[boneGroup.bones[boneIndices[i]]] = boneWeights[i]
-				vertex.boneMapping = boneMapping
+						
+						vertex.boneMapping[boneGroup.bones[boneIndices[i]]] = boneWeights[i] / 255.0
+						vertexEncoding.boneMapping.append((boneGroup.bones[boneIndices[i]], boneWeights[i]))
 			
 			vertices.append(vertex)
-		return vertices
+			vertexEncodings.append(vertexEncoding)
+		return (vertices, vertexEncodings)
 	
 	@staticmethod
 	def parseFaces(fmdl, vertexBufferOffset, firstFaceVertexIndex, faceVertexCount, vertices):
@@ -1312,6 +1324,11 @@ class FmdlFile:
 	
 	@staticmethod
 	def addMesh(fmdl, mesh, boneIndices, materialInstanceID, levelsOfDetail, vertexPositionBuffer, vertexDataBuffer, faceBuffer):
+		if mesh.vertexEncoding == None:
+			vertexEncoding = FmdlFile.encodeVertices(mesh.vertices, mesh.vertexFields)
+		else:
+			vertexEncoding = mesh.vertexEncoding
+		
 		if mesh.vertexFields.hasBoneMapping:
 			(boneGroupID, boneGroupIndices) = FmdlFile.addBoneGroup(fmdl, mesh.boneGroup, boneIndices)
 		else:
@@ -1326,7 +1343,7 @@ class FmdlFile:
 		) = FmdlFile.addMeshFormatAssignment(fmdl, mesh.vertexFields, len(vertexPositionBuffer), len(vertexDataBuffer))
 		
 		vertexIndices = FmdlFile.addVertices(
-			mesh.vertices,
+			vertexEncoding,
 			vertexFormatEntries,
 			positionBufferEntrySize,
 			dataBufferEntrySize,
@@ -1576,19 +1593,31 @@ class FmdlFile:
 		return index
 	
 	@staticmethod
-	def addVertices(vertices, formatEntries, positionBufferEntrySize, dataBufferEntrySize, boneGroupIndices, vertexPositionBuffer, vertexDataBuffer):
-		positionBuffer = bytearray(len(vertices) * positionBufferEntrySize)
-		dataBuffer = bytearray(len(vertices) * dataBufferEntrySize)
-		buffers = [positionBuffer, dataBuffer]
-		entrySizes = [positionBufferEntrySize, dataBufferEntrySize]
-		
-		vertexIndices = {}
-		
+	def encodeVertices(vertices, vertexFields):
+		vertexEncodings = []
 		for vertexIndex in range(len(vertices)):
+			vertexEncoding = FmdlFile.VertexEncoding()
 			vertex = vertices[vertexIndex]
-			vertexIndices[vertex] = vertexIndex
-			
-			if vertex.boneMapping != None:
+			vertexEncoding.vertex = vertex
+			if True:
+				# position is always present
+				vertexEncoding.position = pack('< 3f', vertex.position.x, vertex.position.y, vertex.position.z)
+			if vertexFields.hasNormal:
+				vertexEncoding.normal = pack('< 4H', *(FmdlFile.encodeFloat16(x) for x in
+					(vertex.normal.x, vertex.normal.y, vertex.normal.z, vertex.normal.w)
+				))
+			if vertexFields.hasTangent:
+				vertexEncoding.tangent = pack('< 4H', *(FmdlFile.encodeFloat16(x) for x in
+					(vertex.tangent.x, vertex.tangent.y, vertex.tangent.z, vertex.tangent.w)
+				))
+			if vertexFields.hasColor:
+				vertexEncoding.color = pack('< 4B', *(int(x * 255 + 0.5) for x in vertex.color))
+			for i in range(4):
+				if i < vertexFields.uvCount:
+					vertexEncoding.uv.append(pack('< 2H', *(FmdlFile.encodeFloat16(x) for x in
+						(vertex.uv[i].u, vertex.uv[i].v)
+					)))
+			if vertexFields.hasBoneMapping:
 				#
 				# fmdl bone mappings support at most 4 bones, and store weights as 8-bit integers.
 				# Pack the desired bone mapping into this constraint as accurately as possible:
@@ -1598,8 +1627,7 @@ class FmdlFile:
 				#   does not change more than one rounding error. In particular, a rounded total weight
 				#   of 1 must remain a total weight of 1 after elementwise rounding.
 				#
-				unorderedBones = [(boneGroupIndices[bone], weight) for (bone, weight) in vertex.boneMapping.items()]
-				orderedBones = sorted(unorderedBones, key = (lambda pair: pair[1]), reverse = True)
+				orderedBones = sorted(vertex.boneMapping.items(), key = (lambda pair: pair[1]), reverse = True)
 				totalWeight = sum([weight for (boneIndex, weight) in orderedBones])
 				integralTotalWeight = int((totalWeight * 255) + 0.5)
 				selectedBones = orderedBones[0:4]
@@ -1607,10 +1635,9 @@ class FmdlFile:
 				
 				remainingIntegralWeight = integralTotalWeight
 				remainingSelectedWeight = selectedWeight
-				boneIndices = []
-				boneWeights = []
+				vertexEncoding.boneMapping = []
 				for i in range(len(selectedBones)):
-					(boneIndex, weight) = selectedBones[i]
+					(bone, weight) = selectedBones[i]
 					if i == len(selectedBones) - 1:
 						boneWeight = remainingIntegralWeight
 					elif remainingSelectedWeight <= 0:
@@ -1621,74 +1648,76 @@ class FmdlFile:
 						remainingSelectedWeight -= weight
 					
 					if boneWeight > 0:
-						boneIndices.append(boneIndex)
-						boneWeights.append(boneWeight / 255.0)
-				if len(boneIndices) < 4:
-					boneIndices += ((0,) * (4 - len(boneIndices)))
-					boneWeights += ((0.0,) * (4 - len(boneWeights)))
+						vertexEncoding.boneMapping.append((bone, boneWeight))
+			vertexEncodings.append(vertexEncoding)
+		return vertexEncodings
+	
+	@staticmethod
+	def addVertices(encodedVertices, formatEntries, positionBufferEntrySize, dataBufferEntrySize, boneGroupIndices, vertexPositionBuffer, vertexDataBuffer):
+		positionBuffer = bytearray(len(encodedVertices) * positionBufferEntrySize)
+		dataBuffer = bytearray(len(encodedVertices) * dataBufferEntrySize)
+		buffers = [positionBuffer, dataBuffer]
+		entrySizes = [positionBufferEntrySize, dataBufferEntrySize]
+		
+		vertexIndices = {}
+		
+		for vertexIndex in range(len(encodedVertices)):
+			vertexEncoding = encodedVertices[vertexIndex]
+			vertexIndices[vertexEncoding.vertex] = vertexIndex
 			
 			for (bufferID, datumType, datumFormat, offset) in formatEntries:
 				if datumType == FmdlFile.FmdlVertexDatumType.position:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.tripleFloat32:
 						raise InvalidFmdl("Unexpected format %d for vertex position data" % datumFormat)
-					value = (vertex.position.x, vertex.position.y, vertex.position.z)
+					value = vertexEncoding.position
 				elif datumType == FmdlFile.FmdlVertexDatumType.boneWeights:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat8:
 						raise InvalidFmdl("Unexpected format %d for vertex bone weight data" % datumFormat)
-					value = boneWeights
+					boneWeights = [weight for (bone, weight) in vertexEncoding.boneMapping]
+					if len(boneWeights) < 4:
+						boneWeights += ((0,) * (4 - len(boneWeights)))
+					value = pack('< 4B', *boneWeights)
 				elif datumType == FmdlFile.FmdlVertexDatumType.normal:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex normal data" % datumFormat)
-					value = (vertex.normal.x, vertex.normal.y, vertex.normal.z, vertex.normal.w)
+					value = vertexEncoding.normal
 				elif datumType == FmdlFile.FmdlVertexDatumType.color:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat8:
 						raise InvalidFmdl("Unexpected format %d for vertex color data" % datumFormat)
-					value = vertex.color
+					value = vertexEncoding.color
 				elif datumType == FmdlFile.FmdlVertexDatumType.boneIndices:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadInt8:
 						raise InvalidFmdl("Unexpected format %d for vertex bone index data" % datumFormat)
-					value = boneIndices
+					boneIndices = [boneGroupIndices[bone] for (bone, weight) in vertexEncoding.boneMapping]
+					if len(boneIndices) < 4:
+						boneIndices += ((0,) * (4 - len(boneIndices)))
+					value = pack('< 4B', *boneIndices)
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv0:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					value = (vertex.uv[0].u, vertex.uv[0].v)
+					value = vertexEncoding.uv[0]
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv1:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					value = (vertex.uv[1].u, vertex.uv[1].v)
+					value = vertexEncoding.uv[1]
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv2:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					value = (vertex.uv[2].u, vertex.uv[2].v)
+					value = vertexEncoding.uv[2]
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv3:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					value = (vertex.uv[3].u, vertex.uv[3].v)
+					value = vertexEncoding.uv[3]
 				elif datumType == FmdlFile.FmdlVertexDatumType.tangent:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat16:
 						raise InvalidFmdl("Unexpected format %d for vertex tangent data" % datumFormat)
-					value = (vertex.tangent.x, vertex.tangent.y, vertex.tangent.z, vertex.tangent.w)
+					value = vertexEncoding.tangent
 				else:
 					raise InvalidFmdl("Unexpected vertex datum type %d" % datumType)
 				
 				position = entrySizes[bufferID] * vertexIndex + offset
 				buffer = buffers[bufferID]
-				
-				if datumFormat == FmdlFile.FmdlVertexDatumFormat.tripleFloat32:
-					pack_into('< 3f', buffer, position, *value)
-				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.quadFloat16:
-					encodedValue = tuple(FmdlFile.encodeFloat16(x) for x in value)
-					pack_into('< 4H', buffer, position, *encodedValue)
-				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
-					encodedValue = tuple(FmdlFile.encodeFloat16(x) for x in value)
-					pack_into('< 2H', buffer, position, *encodedValue)
-				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.quadFloat8:
-					encodedValue = tuple(int(x * 255 + 0.5) for x in value)
-					pack_into('< 4B', buffer, position, *encodedValue)
-				elif datumFormat == FmdlFile.FmdlVertexDatumFormat.quadInt8:
-					pack_into('< 4B', buffer, position, *value)
-				else:
-					raise InvalidFmdl("Unexpected vertex datum format %d" % (datumFormat))
+				buffer[position : position + len(value)] = value
 		
 		if len(positionBuffer) % 16:
 			positionBuffer += bytearray(16 - (len(positionBuffer) % 16))
@@ -1813,6 +1842,15 @@ class FmdlFile:
 		
 		for meshGroup in meshGroups:
 			FmdlFile.addMeshGroup(fmdl, meshGroup, meshGroupIndices, meshIndices)
+	
+	def precomputeVertexEncoding(self):
+		for mesh in self.meshes:
+			if mesh.vertexEncoding == None:
+				mesh.vertexEncoding = self.encodeVertices(mesh.vertices, mesh.vertexFields)
+	
+	def freeVertexEncoding(self):
+		for mesh in self.meshes:
+			mesh.vertexEncoding = None
 	
 	def writeFile(self, filename):
 		fmdl = FmdlContainer()

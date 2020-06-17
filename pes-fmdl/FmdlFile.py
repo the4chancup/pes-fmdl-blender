@@ -366,6 +366,7 @@ class FmdlFile:
 		self.materialInstances = []
 		self.meshes = []
 		self.meshGroups = []
+		self.extensionHeaders = {}
 	
 	
 	
@@ -1244,6 +1245,7 @@ class FmdlFile:
 		self.materialInstances = materialInstances
 		self.meshes = meshes
 		self.meshGroups = meshGroups
+		self.extensionHeaders = extensionHeaders
 	
 	
 	
@@ -1627,7 +1629,7 @@ class FmdlFile:
 				#   does not change more than one rounding error. In particular, a rounded total weight
 				#   of 1 must remain a total weight of 1 after elementwise rounding.
 				#
-				orderedBones = sorted(vertex.boneMapping.items(), key = (lambda pair: pair[1]), reverse = True)
+				orderedBones = sorted(vertex.boneMapping.items(), key = (lambda pair: (pair[1], pair[0].name)), reverse = True)
 				totalWeight = sum([weight for (boneIndex, weight) in orderedBones])
 				integralTotalWeight = int((totalWeight * 255) + 0.5)
 				selectedBones = orderedBones[0:4]
@@ -1855,12 +1857,12 @@ class FmdlFile:
 	def writeFile(self, filename):
 		fmdl = FmdlContainer()
 		
-		extensionHeaders = {'X-FMDL-Extensions': []}
 		self.addString(fmdl, '')
 		boneIndices = self.storeBones(fmdl, self.bones)
 		materialInstanceIndices = self.storeMaterialInstances(fmdl, self.materialInstances)
 		meshIndices = self.storeMeshes(fmdl, self.meshes, boneIndices, materialInstanceIndices)
 		self.storeMeshGroups(fmdl, self.meshGroups, meshIndices)
+		self.addExtensionHeaders(fmdl, self.extensionHeaders)
 		
 		# Unknown purpose
 		self.addSegment0Block(fmdl, 18, pack('< 8x'))
@@ -1873,7 +1875,5 @@ class FmdlFile:
 		for i in range(4):
 			if i not in fmdl.segment1Blocks:
 				fmdl.segment1Blocks[i] = bytearray()
-		
-		self.addExtensionHeaders(fmdl, extensionHeaders)
 		
 		fmdl.writeFile(filename)

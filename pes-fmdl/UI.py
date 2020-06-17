@@ -37,18 +37,33 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	bl_label = "Import Fmdl"
 	bl_options = {'REGISTER', 'UNDO'}
 	
+	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
+	
 	import_label = "PES FMDL (.fmdl)"
 	
 	filename_ext = ".fmdl"
 	filter_glob = bpy.props.StringProperty(default="*.fmdl", options={'HIDDEN'})
 	
+	def invoke(self, context, event):
+		self.extensions_enabled = context.scene.fmdl_import_extensions_enabled
+		self.loop_preservation = context.scene.fmdl_import_loop_preservation
+		return bpy_extras.io_utils.ImportHelper.invoke(self, context, event)
+	
 	def execute(self, context):
 		filename = self.filepath
+		
+		importSettings = IO.ImportSettings()
+		importSettings.enableExtensions = self.extensions_enabled
+		importSettings.enableVertexLoopPreservation = self.loop_preservation
 		
 		fmdlFile = FmdlFile.FmdlFile()
 		fmdlFile.readFile(filename)
 		
-		IO.importFmdl(context, fmdlFile, filename)
+		rootObject = IO.importFmdl(context, fmdlFile, filename, importSettings)
+		
+		rootObject.fmdl_export_extensions_enabled = importSettings.enableExtensions
+		rootObject.fmdl_export_loop_preservation = importSettings.enableVertexLoopPreservation
 		
 		return {'FINISHED'}
 
@@ -58,13 +73,20 @@ class FMDL_Scene_Export_Scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 	bl_label = "Export Fmdl"
 	bl_options = {'REGISTER'}
 	
+	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
+	
 	export_label = "PES FMDL (.fmdl)"
 	
 	filename_ext = ".fmdl"
 	filter_glob = bpy.props.StringProperty(default="*.fmdl", options={'HIDDEN'})
 	
 	def execute(self, context):
-		fmdlFile = IO.exportFmdl(context, None)
+		exportSettings = IO.ExportSettings()
+		exportSettings.enableExtensions = self.extensions_enabled
+		exportSettings.enableVertexLoopPreservation = self.loop_preservation
+		
+		fmdlFile = IO.exportFmdl(context, None, exportSettings)
 		fmdlFile.writeFile(self.filepath)
 		
 		self.report({'INFO'}, "Fmdl exported successfully.") 
@@ -78,6 +100,8 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 	bl_options = {'REGISTER'}
 	
 	objectName = bpy.props.StringProperty("Object to export")
+	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	
 	export_label = "PES FMDL (.fmdl)"
 	
@@ -90,15 +114,33 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 	
 	def invoke(self, context, event):
 		self.objectName = context.active_object.name
+		self.extensions_enabled = context.active_object.fmdl_import_extensions_enabled
+		self.loop_preservation = context.active_object.fmdl_import_loop_preservation
+		if context.active_object.fmdl_filename != "":
+			self.filepath = context.active_object.fmdl_filename
 		return bpy_extras.io_utils.ExportHelper.invoke(self, context, event)
 	
 	def execute(self, context):
-		fmdlFile = IO.exportFmdl(context, self.objectName)
+		exportSettings = IO.ExportSettings()
+		exportSettings.enableExtensions = self.extensions_enabled
+		exportSettings.enableVertexLoopPreservation = self.loop_preservation
+		
+		fmdlFile = IO.exportFmdl(context, self.objectName, exportSettings)
 		fmdlFile.writeFile(self.filepath)
 		
 		self.report({'INFO'}, "Fmdl exported successfully.") 
 		
 		return {'FINISHED'}
+
+class FMDL_Scene_Panel_FMDL_Import_Settings(bpy.types.Menu):
+	"""Import Settings"""
+	bl_label = "Import settings"
+	
+	def draw(self, context):
+		self.layout.prop(context.scene, 'fmdl_import_extensions_enabled')
+		row = self.layout.row()
+		row.prop(context.scene, 'fmdl_import_loop_preservation')
+		row.enabled = context.scene.fmdl_import_extensions_enabled
 
 class FMDL_Scene_Panel_FMDL_Compose(bpy.types.Operator):
 	"""Enable separate exporting of the active object"""
@@ -127,20 +169,15 @@ class FMDL_Scene_Panel_FMDL_Remove(bpy.types.Operator):
 		context.scene.objects[self.objectName].fmdl_file = False
 		return {'FINISHED'}
 
-class FMDL_Scene_Panel_FMDL_Export(bpy.types.Operator):
-	"""Export as PES FMDL file"""
-	bl_idname = "fmdl.export_listed_object"
-	bl_label = "Export Fmdl"
-	bl_options = {'INTERNAL'}
+class FMDL_Scene_Panel_FMDL_Export_Settings(bpy.types.Menu):
+	"""Export Settings"""
+	bl_label = "Export settings"
 	
-	objectName = bpy.props.StringProperty(name = "Object to export")
-	
-	def execute(self, context):
-		return bpy.ops.export_scene.fmdl_object(
-			context.copy(),
-			objectName = self.objectName,
-			filepath = context.scene.objects[self.objectName].fmdl_filename
-		)
+	def draw(self, context):
+		self.layout.prop(context.active_object, 'fmdl_export_extensions_enabled')
+		row = self.layout.row()
+		row.prop(context.active_object, 'fmdl_export_loop_preservation')
+		row.enabled = context.active_object.fmdl_export_extensions_enabled
 
 class FMDL_Scene_Panel_FMDL_Select_Filename(bpy.types.Operator):
 	"""Select a filename to export this FMDL file"""
@@ -190,24 +227,35 @@ class FMDL_Scene_Panel(bpy.types.Panel):
 		fmdlFileObjects.sort(key = lambda object: object.name)
 		
 		mainColumn = self.layout.column()
-		mainColumn.operator(FMDL_Scene_Import.bl_idname)
-		mainColumn.operator(FMDL_Scene_Panel_FMDL_Compose.bl_idname)
+		importRow = mainColumn.row()
+		buttonColumn = importRow.column()
+		buttonColumn.operator(FMDL_Scene_Import.bl_idname)
+		buttonColumn.operator(FMDL_Scene_Panel_FMDL_Compose.bl_idname)
+		importRow.menu(FMDL_Scene_Panel_FMDL_Import_Settings.__name__, icon = 'DOWNARROW_HLT', text = "")
 		for object in fmdlFileObjects:
 			box = mainColumn.box()
 			column = box.column()
 			
-			row1 = column.row()
-			row1.label("Object: %s" % object.name)
-			row1.operator(FMDL_Scene_Panel_FMDL_Remove.bl_idname, text = "", icon = 'X').objectName = object.name
+			row = column.row()
+			row.label("Object: %s" % object.name)
+			row.operator(FMDL_Scene_Panel_FMDL_Remove.bl_idname, text = "", icon = 'X').objectName = object.name
 			
-			row2 = column.row(align = True)
-			row2.prop(object, 'fmdl_filename', text = "Export Path")
-			row2.operator(FMDL_Scene_Panel_FMDL_Select_Filename.bl_idname, text = "", icon = 'FILESEL').objectName = object.name
+			row = column.row(align = True)
+			row.prop(object, 'fmdl_filename', text = "Export Path")
+			row.operator(FMDL_Scene_Panel_FMDL_Select_Filename.bl_idname, text = "", icon = 'FILESEL').objectName = object.name
 			
-			row3 = column.row()
-			row3.operator(FMDL_Scene_Panel_FMDL_Export.bl_idname).objectName = object.name
+			row = column.row()
+			row.operator_context = 'EXEC_DEFAULT'
+			row.context_pointer_set('active_object', object)
+			subrow = row.row()
+			exportSettings = subrow.operator(FMDL_Scene_Export_Object.bl_idname)
+			exportSettings.objectName = object.name
+			exportSettings.filepath = object.fmdl_filename
+			exportSettings.extensions_enabled = object.fmdl_export_extensions_enabled
+			exportSettings.loop_preservation = object.fmdl_export_loop_preservation
 			if object.fmdl_filename == "":
-				row3.enabled = False
+				subrow.enabled = False
+			row.menu(FMDL_Scene_Panel_FMDL_Export_Settings.__name__, icon = 'DOWNARROW_HLT', text = "")
 
 
 
@@ -446,7 +494,7 @@ class FMDL_Mesh_BoneGroup_Panel(bpy.types.Panel):
 		
 		summaryRow = self.layout.row()
 		summaryRow.label("Bone group size: %s/32%s" % (groupSize, ' (!!)' if groupSize > 32 else ''))
-		summaryRow.menu("FMDL_Mesh_BoneGroup_Specials", icon = 'DOWNARROW_HLT', text = "")
+		summaryRow.menu(FMDL_Mesh_BoneGroup_Specials.__name__, icon = 'DOWNARROW_HLT', text = "")
 		
 		detailLayout = self.layout.row()
 		detailLayoutSplit = detailLayout.split(percentage = 0.6)
@@ -658,9 +706,10 @@ classes = [
 	FMDL_Scene_Import,
 	FMDL_Scene_Export_Scene,
 	FMDL_Scene_Export_Object,
+	FMDL_Scene_Panel_FMDL_Import_Settings,
 	FMDL_Scene_Panel_FMDL_Compose,
 	FMDL_Scene_Panel_FMDL_Remove,
-	FMDL_Scene_Panel_FMDL_Export,
+	FMDL_Scene_Panel_FMDL_Export_Settings,
 	FMDL_Scene_Panel_FMDL_Select_Filename,
 	FMDL_Scene_Panel,
 	
@@ -688,6 +737,10 @@ classes = [
 def register():
 	bpy.types.Object.fmdl_file = bpy.props.BoolProperty(name = "Is FMDL file", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_filename = bpy.props.StringProperty(name = "FMDL filename", options = {'SKIP_SAVE'})
+	bpy.types.Object.fmdl_export_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	bpy.types.Object.fmdl_export_loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
+	bpy.types.Scene.fmdl_import_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	bpy.types.Scene.fmdl_import_loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	bpy.types.Bone.fmdl_bone_in_active_mesh = bpy.props.BoolProperty(name = "Enabled",
 		get = FMDL_Mesh_BoneGroup_Bone_get_enabled,
 		set = FMDL_Mesh_BoneGroup_Bone_set_enabled,

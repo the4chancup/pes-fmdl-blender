@@ -6,11 +6,23 @@ import os
 import os.path
 import re
 
-from . import FmdlFile, Ftex, PesSkeletonData
+from . import FmdlFile, FmdlSplitVertexEncoding, Ftex, PesSkeletonData
 
 
 class UnsupportedFmdl(Exception):
 	pass
+
+class ImportSettings:
+	def __init__(self):
+		self.enableExtensions = True
+		self.enableVertexLoopPreservation = True
+
+class ExportSettings:
+	def __init__(self):
+		self.enableExtensions = True
+		self.enableVertexLoopPreservation = True
+
+
 
 def setActiveObject(context, blenderObject):
 	if 'view_layer' in dir(context):
@@ -20,7 +32,7 @@ def setActiveObject(context, blenderObject):
 
 
 
-def importFmdl(context, fmdl, filename):
+def importFmdl(context, fmdl, filename, importSettings = None):
 	UV_MAP_COLOR = 'UVMap'
 	UV_MAP_NORMALS = 'normal_map'
 	
@@ -248,19 +260,27 @@ def importFmdl(context, fmdl, filename):
 	def importMesh(mesh, name, fmdl, materialIDs, armatureObjectID, boneIDs):
 		blenderMesh = bpy.data.meshes.new(name)
 		
-		vertexIndices = {}
-		for i in range(len(mesh.vertices)):
-			vertexIndices[mesh.vertices[i]] = i
+		#
+		# mesh.vertices does not correspond either to the blenderMesh.vertices
+		# nor the blenderMesh.loops, but rather the unique values of blenderMesh.loops.
+		# The blenderMesh.vertices correspond to the unique vertex.position values in mesh.vertices.
+		#
 		
+		vertexIndices = {}
+		vertexVertices = []
+		for vertex in mesh.vertices:
+			if vertex.position not in vertexIndices:
+				vertexIndices[vertex.position] = len(vertexIndices)
+				vertexVertices.append(vertex)
 		loopVertices = list(itertools.chain.from_iterable([reversed(face.vertices) for face in mesh.faces]))
 		
-		blenderMesh.vertices.add(len(mesh.vertices))
+		blenderMesh.vertices.add(len(vertexVertices))
 		blenderMesh.vertices.foreach_set("co", tuple(itertools.chain.from_iterable([
-			(vertex.position.x, -vertex.position.z, vertex.position.y) for vertex in mesh.vertices
+			(vertex.position.x, -vertex.position.z, vertex.position.y) for vertex in vertexVertices
 		])))
 		
 		blenderMesh.loops.add(len(mesh.faces) * 3)
-		blenderMesh.loops.foreach_set("vertex_index", tuple([vertexIndices[vertex] for vertex in loopVertices]))
+		blenderMesh.loops.foreach_set("vertex_index", tuple([vertexIndices[vertex.position] for vertex in loopVertices]))
 		
 		blenderMesh.polygons.add(len(mesh.faces))
 		blenderMesh.polygons.foreach_set("loop_start", tuple(range(0, 3 * len(mesh.faces), 3)))
@@ -275,8 +295,8 @@ def importFmdl(context, fmdl, filename):
 				if size < 0.01:
 					return (x, y, z)
 				return (x / size, y / size, z / size)
-			blenderMesh.normals_split_custom_set_from_vertices([
-				normalize((vertex.normal.x, -vertex.normal.z, vertex.normal.y)) for vertex in mesh.vertices
+			blenderMesh.normals_split_custom_set([
+				normalize((vertex.normal.x, -vertex.normal.z, vertex.normal.y)) for vertex in loopVertices
 			])
 			blenderMesh.use_auto_smooth = True
 		
@@ -329,9 +349,9 @@ def importFmdl(context, fmdl, filename):
 		
 		if mesh.vertexFields.hasBoneMapping:
 			vertexGroupIDs = addSkeletonMeshModifier(blenderMeshObject, mesh.boneGroup, armatureObjectID, boneIDs)
-			for i in range(len(mesh.vertices)):
-				for bone in mesh.vertices[i].boneMapping:
-					weight = mesh.vertices[i].boneMapping[bone]
+			for i in range(len(vertexVertices)):
+				for bone in vertexVertices[i].boneMapping:
+					weight = vertexVertices[i].boneMapping[bone]
 					blenderMeshObject.vertex_groups[vertexGroupIDs[bone]].add((i, ), weight, 'REPLACE')
 		
 		return meshObjectID
@@ -402,6 +422,9 @@ def importFmdl(context, fmdl, filename):
 	
 	
 	
+	if importSettings == None:
+		importSettings = ImportSettings()
+	
 	if context.active_object == None:
 		activeObjectID = None
 	else:
@@ -410,6 +433,9 @@ def importFmdl(context, fmdl, filename):
 		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
 	
 	
+	
+	if importSettings.enableExtensions and importSettings.enableVertexLoopPreservation:
+		fmdl = FmdlSplitVertexEncoding.decodeFmdlVertexLoopPreservation(fmdl)
 	
 	baseDir = os.path.dirname(filename)
 	textureSearchPath = []
@@ -435,7 +461,7 @@ def importFmdl(context, fmdl, filename):
 	
 	meshObjectIDs = importMeshes(context, fmdl, materialIDs, armatureObjectID, boneIDs)
 	
-	importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename)
+	rootMeshGroupID = importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename)
 	
 	
 	
@@ -443,9 +469,11 @@ def importFmdl(context, fmdl, filename):
 		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
 	if activeObjectID != None:
 		setActiveObject(context, bpy.data.objects[activeObjectID])
+	
+	return bpy.data.objects[rootMeshGroupID]
 
 
-def exportFmdl(context, rootObjectName):
+def exportFmdl(context, rootObjectName, exportSettings = None):
 	def exportMaterial(blenderMaterial, textureFmdlObjects):
 		materialInstance = FmdlFile.FmdlFile.MaterialInstance()
 		
@@ -1038,6 +1066,10 @@ def exportFmdl(context, rootObjectName):
 		return (blenderMeshObjects, blenderRootObject)
 	
 	
+	
+	if exportSettings == None:
+		exportSettings = ExportSettings()
+	
 	if context.mode != 'OBJECT':
 		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
 	
@@ -1065,5 +1097,8 @@ def exportFmdl(context, rootObjectName):
 	fmdlFile.materialInstances = materialInstances
 	fmdlFile.meshes = meshes
 	fmdlFile.meshGroups = meshGroups
+	
+	if exportSettings.enableExtensions and exportSettings.enableVertexLoopPreservation:
+		fmdlFile = FmdlSplitVertexEncoding.encodeFmdlVertexLoopPreservation(fmdlFile)
 	
 	return fmdlFile

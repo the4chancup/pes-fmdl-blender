@@ -635,7 +635,7 @@ def exportFmdl(context, rootObjectName):
 					# Cross product the loop normal with any vector that is not parallel with it.
 					bestVector = None
 					for v in [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]:
-						vector = mathutils.Vector(vector)
+						vector = mathutils.Vector(v)
 						if bestVector == None or abs(vector.dot(self.normal)) < abs(bestVector.dot(self.normal)):
 							bestVector = vector
 					return bestVector.cross(self.normal)

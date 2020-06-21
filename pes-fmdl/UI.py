@@ -39,6 +39,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	
 	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
 	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
+	mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	
 	import_label = "PES FMDL (.fmdl)"
 	
@@ -48,6 +49,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	def invoke(self, context, event):
 		self.extensions_enabled = context.scene.fmdl_import_extensions_enabled
 		self.loop_preservation = context.scene.fmdl_import_loop_preservation
+		self.mesh_splitting = context.scene.fmdl_import_mesh_splitting
 		return bpy_extras.io_utils.ImportHelper.invoke(self, context, event)
 	
 	def execute(self, context):
@@ -56,6 +58,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 		importSettings = IO.ImportSettings()
 		importSettings.enableExtensions = self.extensions_enabled
 		importSettings.enableVertexLoopPreservation = self.loop_preservation
+		importSettings.enableMeshSplitting = self.mesh_splitting
 		
 		fmdlFile = FmdlFile.FmdlFile()
 		fmdlFile.readFile(filename)
@@ -64,6 +67,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 		
 		rootObject.fmdl_export_extensions_enabled = importSettings.enableExtensions
 		rootObject.fmdl_export_loop_preservation = importSettings.enableVertexLoopPreservation
+		rootObject.fmdl_export_mesh_splitting = importSettings.enableMeshSplitting
 		
 		return {'FINISHED'}
 
@@ -75,6 +79,7 @@ class FMDL_Scene_Export_Scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 	
 	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
 	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
+	mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	
 	export_label = "PES FMDL (.fmdl)"
 	
@@ -85,6 +90,7 @@ class FMDL_Scene_Export_Scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 		exportSettings = IO.ExportSettings()
 		exportSettings.enableExtensions = self.extensions_enabled
 		exportSettings.enableVertexLoopPreservation = self.loop_preservation
+		exportSettings.enableMeshSplitting = self.mesh_splitting
 		
 		fmdlFile = IO.exportFmdl(context, None, exportSettings)
 		fmdlFile.writeFile(self.filepath)
@@ -102,6 +108,7 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 	objectName = bpy.props.StringProperty("Object to export")
 	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
 	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
+	mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	
 	export_label = "PES FMDL (.fmdl)"
 	
@@ -114,8 +121,9 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 	
 	def invoke(self, context, event):
 		self.objectName = context.active_object.name
-		self.extensions_enabled = context.active_object.fmdl_import_extensions_enabled
-		self.loop_preservation = context.active_object.fmdl_import_loop_preservation
+		self.extensions_enabled = context.active_object.fmdl_export_extensions_enabled
+		self.loop_preservation = context.active_object.fmdl_export_loop_preservation
+		self.mesh_splitting = context.active_object.fmdl_export_mesh_splitting
 		if context.active_object.fmdl_filename != "":
 			self.filepath = context.active_object.fmdl_filename
 		return bpy_extras.io_utils.ExportHelper.invoke(self, context, event)
@@ -124,6 +132,7 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 		exportSettings = IO.ExportSettings()
 		exportSettings.enableExtensions = self.extensions_enabled
 		exportSettings.enableVertexLoopPreservation = self.loop_preservation
+		exportSettings.enableMeshSplitting = self.mesh_splitting
 		
 		fmdlFile = IO.exportFmdl(context, self.objectName, exportSettings)
 		fmdlFile.writeFile(self.filepath)
@@ -140,6 +149,9 @@ class FMDL_Scene_Panel_FMDL_Import_Settings(bpy.types.Menu):
 		self.layout.prop(context.scene, 'fmdl_import_extensions_enabled')
 		row = self.layout.row()
 		row.prop(context.scene, 'fmdl_import_loop_preservation')
+		row.enabled = context.scene.fmdl_import_extensions_enabled
+		row = self.layout.row()
+		row.prop(context.scene, 'fmdl_import_mesh_splitting')
 		row.enabled = context.scene.fmdl_import_extensions_enabled
 
 class FMDL_Scene_Panel_FMDL_Compose(bpy.types.Operator):
@@ -177,6 +189,9 @@ class FMDL_Scene_Panel_FMDL_Export_Settings(bpy.types.Menu):
 		self.layout.prop(context.active_object, 'fmdl_export_extensions_enabled')
 		row = self.layout.row()
 		row.prop(context.active_object, 'fmdl_export_loop_preservation')
+		row.enabled = context.active_object.fmdl_export_extensions_enabled
+		row = self.layout.row()
+		row.prop(context.active_object, 'fmdl_export_mesh_splitting')
 		row.enabled = context.active_object.fmdl_export_extensions_enabled
 
 class FMDL_Scene_Panel_FMDL_Select_Filename(bpy.types.Operator):
@@ -253,6 +268,7 @@ class FMDL_Scene_Panel(bpy.types.Panel):
 			exportSettings.filepath = object.fmdl_filename
 			exportSettings.extensions_enabled = object.fmdl_export_extensions_enabled
 			exportSettings.loop_preservation = object.fmdl_export_loop_preservation
+			exportSettings.mesh_splitting = object.fmdl_export_mesh_splitting
 			if object.fmdl_filename == "":
 				subrow.enabled = False
 			row.menu(FMDL_Scene_Panel_FMDL_Export_Settings.__name__, icon = 'DOWNARROW_HLT', text = "")
@@ -739,8 +755,10 @@ def register():
 	bpy.types.Object.fmdl_filename = bpy.props.StringProperty(name = "FMDL filename", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_export_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
 	bpy.types.Object.fmdl_export_loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
+	bpy.types.Object.fmdl_export_mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	bpy.types.Scene.fmdl_import_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
 	bpy.types.Scene.fmdl_import_loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
+	bpy.types.Scene.fmdl_import_mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	bpy.types.Bone.fmdl_bone_in_active_mesh = bpy.props.BoolProperty(name = "Enabled",
 		get = FMDL_Mesh_BoneGroup_Bone_get_enabled,
 		set = FMDL_Mesh_BoneGroup_Bone_set_enabled,

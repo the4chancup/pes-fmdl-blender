@@ -6,7 +6,7 @@ import os
 import os.path
 import re
 
-from . import FmdlFile, FmdlSplitVertexEncoding, Ftex, PesSkeletonData
+from . import FmdlFile, FmdlMeshSplitting, FmdlSplitVertexEncoding, Ftex, PesSkeletonData
 
 
 class UnsupportedFmdl(Exception):
@@ -16,11 +16,13 @@ class ImportSettings:
 	def __init__(self):
 		self.enableExtensions = True
 		self.enableVertexLoopPreservation = True
+		self.enableMeshSplitting = True
 
 class ExportSettings:
 	def __init__(self):
 		self.enableExtensions = True
 		self.enableVertexLoopPreservation = True
+		self.enableMeshSplitting = True
 
 
 
@@ -434,6 +436,8 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	
 	
 	
+	if importSettings.enableExtensions and importSettings.enableMeshSplitting:
+		fmdl = FmdlMeshSplitting.decodeFmdlSplitMeshes(fmdl)
 	if importSettings.enableExtensions and importSettings.enableVertexLoopPreservation:
 		fmdl = FmdlSplitVertexEncoding.decodeFmdlVertexLoopPreservation(fmdl)
 	
@@ -1100,5 +1104,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 	
 	if exportSettings.enableExtensions and exportSettings.enableVertexLoopPreservation:
 		fmdlFile = FmdlSplitVertexEncoding.encodeFmdlVertexLoopPreservation(fmdlFile)
+	if exportSettings.enableExtensions and exportSettings.enableMeshSplitting:
+		fmdlFile = FmdlMeshSplitting.encodeFmdlSplitMeshes(fmdlFile)
 	
 	return fmdlFile

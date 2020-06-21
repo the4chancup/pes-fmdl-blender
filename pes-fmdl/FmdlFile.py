@@ -1747,7 +1747,7 @@ class FmdlFile:
 		return firstFaceVertexID
 	
 	@staticmethod
-	def addExtensionHeaders(fmdl, extensionHeaders):
+	def addExtensionHeaders(fmdl, extensionHeaders, meshIndices, meshGroupIndices):
 		extensionsHeader = 'X-FMDL-Extensions'
 		flattenedExtensions = []
 		otherHeaders = {}
@@ -1765,7 +1765,13 @@ class FmdlFile:
 			for v in value:
 				if len(output) > 0:
 					output += ", "
-				output += str(v)
+				
+				if isinstance(v, FmdlFile.Mesh):
+					output += str(meshIndices[v])
+				elif isinstance(v, FmdlFile.MeshGroup):
+					output += str(meshGroupIndices[v])
+				else:
+					output += str(v)
 			return output
 		
 		extensionString = ''
@@ -1844,6 +1850,8 @@ class FmdlFile:
 		
 		for meshGroup in meshGroups:
 			FmdlFile.addMeshGroup(fmdl, meshGroup, meshGroupIndices, meshIndices)
+		
+		return meshGroupIndices
 	
 	def precomputeVertexEncoding(self):
 		for mesh in self.meshes:
@@ -1861,8 +1869,9 @@ class FmdlFile:
 		boneIndices = self.storeBones(fmdl, self.bones)
 		materialInstanceIndices = self.storeMaterialInstances(fmdl, self.materialInstances)
 		meshIndices = self.storeMeshes(fmdl, self.meshes, boneIndices, materialInstanceIndices)
-		self.storeMeshGroups(fmdl, self.meshGroups, meshIndices)
-		self.addExtensionHeaders(fmdl, self.extensionHeaders)
+		meshGroupIndices = self.storeMeshGroups(fmdl, self.meshGroups, meshIndices)
+		if self.extensionHeaders != None:
+			self.addExtensionHeaders(fmdl, self.extensionHeaders, meshIndices, meshGroupIndices)
 		
 		# Unknown purpose
 		self.addSegment0Block(fmdl, 18, pack('< 8x'))

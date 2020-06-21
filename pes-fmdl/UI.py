@@ -434,7 +434,7 @@ class FMDL_Mesh_BoneGroup_Panel(bpy.types.Panel):
 		
 		self.layout.template_list(
 			FMDL_Mesh_BoneGroup_List.__name__,
-			"FMDL_Mesh_BoneGroup_List",
+			"FMDL_Mesh_BoneGroups",
 			armature,
 			"bones",
 			meshObject,
@@ -585,7 +585,7 @@ class FMDL_Material_Panel(bpy.types.Panel):
 		parameterListRow = mainColumn.row()
 		parameterListRow.template_list(
 			FMDL_Material_Parameter_Name_List.__name__,
-			"FMDL_Material_Parameter_Name_List",
+			"FMDL_Material_Parameter_Names",
 			material,
 			"fmdl_material_parameters",
 			material,

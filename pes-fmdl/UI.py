@@ -86,6 +86,10 @@ class FMDL_Scene_Export_Scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 	filename_ext = ".fmdl"
 	filter_glob = bpy.props.StringProperty(default="*.fmdl", options={'HIDDEN'})
 	
+	@classmethod
+	def poll(cls, context):
+		return context.mode == 'OBJECT'
+	
 	def execute(self, context):
 		exportSettings = IO.ExportSettings()
 		exportSettings.enableExtensions = self.extensions_enabled
@@ -117,7 +121,7 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 	
 	@classmethod
 	def poll(cls, context):
-		return context.active_object != None
+		return context.mode == 'OBJECT' and context.active_object != None
 	
 	def invoke(self, context, event):
 		self.objectName = context.active_object.name

@@ -96,7 +96,13 @@ class FMDL_Scene_Export_Scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 		exportSettings.enableVertexLoopPreservation = self.loop_preservation
 		exportSettings.enableMeshSplitting = self.mesh_splitting
 		
-		fmdlFile = IO.exportFmdl(context, None, exportSettings)
+		try:
+			fmdlFile = IO.exportFmdl(context, None, exportSettings)
+		except IO.FmdlExportError as error:
+			self.report({'ERROR'}, "Error exporting Fmdl: " + "; ".join(error.errors))
+			print("Error exporting Fmdl:\n" + "\n".join(error.errors))
+			return {'CANCELLED'}
+		
 		fmdlFile.writeFile(self.filepath)
 		
 		self.report({'INFO'}, "Fmdl exported successfully.") 
@@ -138,7 +144,13 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 		exportSettings.enableVertexLoopPreservation = self.loop_preservation
 		exportSettings.enableMeshSplitting = self.mesh_splitting
 		
-		fmdlFile = IO.exportFmdl(context, self.objectName, exportSettings)
+		try:
+			fmdlFile = IO.exportFmdl(context, self.objectName, exportSettings)
+		except IO.FmdlExportError as error:
+			self.report({'ERROR'}, "Error exporting Fmdl: " + "; ".join(error.errors))
+			print("Error exporting Fmdl:\n" + "\n".join(error.errors))
+			return {'CANCELLED'}
+		
 		fmdlFile.writeFile(self.filepath)
 		
 		self.report({'INFO'}, "Fmdl exported successfully.") 

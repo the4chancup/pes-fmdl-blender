@@ -1,8 +1,6 @@
 TODO:
 
 Bugs:
-- warn when exporting meshes with too many vertices in it
-- warn when exporting meshes with too large bone groups
 
 Features:
 - custom bounding-box editing

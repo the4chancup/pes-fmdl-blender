@@ -11,6 +11,10 @@ from . import FmdlFile, FmdlMeshSplitting, FmdlSplitVertexEncoding, Ftex, PesSke
 class UnsupportedFmdl(Exception):
 	pass
 
+class FmdlExportError(Exception):
+	def __init__(self, errors):
+		self.errors = errors
+
 class ImportSettings:
 	def __init__(self):
 		self.enableExtensions = True
@@ -1107,5 +1111,26 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		fmdlFile = FmdlSplitVertexEncoding.encodeFmdlVertexLoopPreservation(fmdlFile)
 	if exportSettings.enableExtensions and exportSettings.enableMeshSplitting:
 		fmdlFile = FmdlMeshSplitting.encodeFmdlSplitMeshes(fmdlFile)
+	
+	errors = []
+	for mesh in fmdlFile.meshes:
+		meshName = None
+		for meshGroup in fmdlFile.meshGroups:
+			if len(meshGroup.meshes) == 1 and meshGroup.meshes[0] == mesh:
+				if meshGroup.name != "":
+					meshName = meshGroup.name
+				break
+		if meshName is None:
+			meshIndex = fmdlFile.meshes.index(mesh)
+			meshName = "mesh_id %s" % meshIndex
+		
+		if len(mesh.vertices) > 65535:
+			errors.append("Mesh '%s' contains %s vertices out of a maximum of 65535" % (meshName, len(mesh.vertices)))
+		if len(mesh.faces) > 21845:
+			errors.append("Mesh '%s' contains %s faces out of a maximum of 21845" % (meshName, len(mesh.faces)))
+		if mesh.boneGroup is not None and len(mesh.boneGroup.bones) > 32:
+			errors.append("Mesh '%s' bone group contains %s bones out of a maximum of 32" % (meshName, len(mesh.boneGroup.bones)))
+	if len(errors) > 0:
+		raise FmdlExportError(errors)
 	
 	return fmdlFile

@@ -1,3 +1,10 @@
+0.4.0  2020-06-22
+
+	* Added support for automatically splitting overlarge meshes into multiple parts on export, and reconstructing them on import.
+	* Added support for storing vertices with split normals or split UVs in such a way that they can be reconstructed accurately.
+	* Added error messages when trying to export an overlarge mesh.
+	* Disabled exporting in edit mode, as this would export the version of the active mesh as it was before editing.
+
 0.3.3  2020-06-22
 
 	* Fixed a bug where the material parameters list could not be scrolled.

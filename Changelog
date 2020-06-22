@@ -1,3 +1,8 @@
+0.3.3  2020-06-22
+
+	* Fixed a bug where the material parameters list could not be scrolled.
+	* Fixed a bug where triangulation would raise warnings or break entirely on meshes with broken normals.
+
 0.3.2  2020-06-10
 
 	* Added bone group editor UI.

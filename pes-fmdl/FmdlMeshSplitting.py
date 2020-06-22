@@ -634,18 +634,15 @@ def encodeFmdlSplitMeshes(fmdl):
 		encodedMeshGroup.meshes = []
 		for mesh in meshGroup.meshes:
 			if mesh in replacedMeshes:
-				if len(meshGroup.meshes) == 1 and meshGroup.name == "":
-					newMeshGroup = encodedMeshGroup
-				else:
-					newMeshGroup = FmdlFile.FmdlFile.MeshGroup()
-					newMeshGroup.boundingBox = meshGroup.boundingBox
-					newMeshGroup.visible = meshGroup.visible
-					newMeshGroup.parent = encodedMeshGroup
-					encodedMeshGroup.children.append(newMeshGroup)
-					output.meshGroups.append(newMeshGroup)
+				newMeshGroup = FmdlFile.FmdlFile.MeshGroup()
 				newMeshGroup.name = 'split-mesh'
+				newMeshGroup.boundingBox = meshGroup.boundingBox
+				newMeshGroup.visible = meshGroup.visible
+				newMeshGroup.parent = encodedMeshGroup
+				encodedMeshGroup.children.append(newMeshGroup)
 				newMeshGroup.meshes = replacedMeshes[mesh]
 				splitMeshGroups.append(newMeshGroup)
+				output.meshGroups.append(newMeshGroup)
 			else:
 				encodedMeshGroup.meshes.append(mesh)
 	

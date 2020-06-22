@@ -379,6 +379,9 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		return meshObjectIDs
 	
 	def addMeshGroup(context, meshGroup, meshObjectIDs):
+		if len(meshGroup.meshes) == 0 and len(meshGroup.children) == 1 and meshGroup.name == "":
+			return addMeshGroup(context, meshGroup.children[0], meshObjectIDs)
+		
 		if len(meshGroup.meshes) == 1:
 			blenderMeshGroupObject = bpy.data.objects[meshObjectIDs[meshGroup.meshes[0]]]
 		else:

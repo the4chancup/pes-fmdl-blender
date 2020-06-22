@@ -1,4 +1,3 @@
-import bmesh
 import bpy
 import mathutils
 import itertools
@@ -589,7 +588,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		return (orderedBones, bonesByName)
 	
-	def exportMeshGeometry(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector):
+	def exportMeshGeometry(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector, scene):
 		#
 		# Setup a modified version of the mesh data that can be fiddled with.
 		#
@@ -607,11 +606,12 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			# calc_tangents() only works on triangulated meshes
 			#
 			
-			blenderBmesh = bmesh.new()
-			blenderBmesh.from_mesh(modifiedBlenderMesh, face_normals = False)
-			bmesh.ops.triangulate(blenderBmesh, faces = blenderBmesh.faces[:], quad_method = 0, ngon_method = 0)
-			blenderBmesh.to_mesh(modifiedBlenderMesh)
-			blenderBmesh.free()
+			modifiedBlenderObject = bpy.data.objects.new('triangulation', modifiedBlenderMesh)
+			modifiedBlenderObject.modifiers.new('triangulation', 'TRIANGULATE')
+			newBlenderMesh = modifiedBlenderObject.to_mesh(scene, True, 'PREVIEW', calc_undeformed = True)
+			bpy.data.objects.remove(modifiedBlenderObject)
+			bpy.data.meshes.remove(modifiedBlenderMesh)
+			modifiedBlenderMesh = newBlenderMesh
 		
 		modifiedBlenderMesh.use_auto_smooth = True
 		modifiedBlenderMesh.calc_tangents(uvLayerColor)
@@ -667,7 +667,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 					# Cross product the loop normal with any vector that is not parallel with it.
 					bestVector = None
 					for v in [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]:
-						vector = mathutils.Vector(vector)
+						vector = mathutils.Vector(v)
 						if bestVector == None or abs(vector.dot(self.normal)) < abs(bestVector.dot(self.normal)):
 							bestVector = vector
 					return bestVector.cross(self.normal)
@@ -767,9 +767,10 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 				fmdlLoopVertices[face.loop_start + 0],
 			))
 		
+		bpy.data.meshes.remove(modifiedBlenderMesh)
 		return (fmdlVertices, fmdlFaces)
 	
-	def exportMesh(blenderMeshObject, materialFmdlObjects, bonesByName):
+	def exportMesh(blenderMeshObject, materialFmdlObjects, bonesByName, scene):
 		blenderMesh = blenderMeshObject.data
 		name = blenderMeshObject.name
 		
@@ -848,7 +849,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		if len(boneVector) > 0:
 			vertexFields.hasBoneMapping = True
 		
-		(vertices, faces) = exportMeshGeometry(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector)
+		(vertices, faces) = exportMeshGeometry(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector, scene)
 		
 		mesh = FmdlFile.FmdlFile.Mesh()
 		mesh.vertices = vertices
@@ -1087,7 +1088,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 	
 	meshFmdlObjects = {}
 	for blenderMeshObject in blenderMeshObjects:
-		mesh = exportMesh(blenderMeshObject, materialFmdlObjects, bonesByName)
+		mesh = exportMesh(blenderMeshObject, materialFmdlObjects, bonesByName, context.scene)
 		meshFmdlObjects[blenderMeshObject] = mesh
 	
 	meshGroups = exportMeshGroups(blenderMeshObjects, meshFmdlObjects, blenderRootObject)

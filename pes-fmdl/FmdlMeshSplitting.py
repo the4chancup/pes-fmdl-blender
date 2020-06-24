@@ -177,65 +177,40 @@ class BoneDescendentStorableItems:
 			self.itemsPerBone[key].looseVertices -= storedItems.looseVertices
 
 #
+# Vertex sequences with the same splitVertexKey need to preserve their relative
+# order and sequentiality, in order not to break split vertex encoding.
+#
+def splitVertexKey(encodedVertex, vertexFields):
+	if vertexFields.hasBoneMapping:
+		return (encodedVertex.position, tuple(encodedVertex.boneMapping))
+	else:
+		return encodedVertex.position
+
+#
 # If a submesh of a mesh includes a vertex X, it also needs to include all
 # vertices that have an identical bytestring encoding as X. Moreover, in order
 # to not break split vertex encoding, it also needs to include all vertices with
-# the same pointer to the vertex position object. This function partitions the
-# vertices of a mesh using the transitive closure of this relation.
+# the same splitVertexKey(), which is a strictly weaker relation. This function
+# partitions the vertices of a mesh using the transitive closure of this
+# relation. Because the splitVertexKey() partitioning is strictly weaker than
+# the identicalEncoding() relation, we can just partition by splitVertexKey().
 #
 def computeEquipresentVertexSets(mesh):
-	#
-	# Store an arbitrary vertex encoding for each position object
-	#
-	identicalVertices = {}
-	#
-	# Store a set of equipresent vertices for each encoding
-	#
 	equipresentVertices = {}
-	
-	for vertexEncoding in mesh.vertexEncoding:
-		encoding = indistinguishableEncoding(vertexEncoding, mesh.vertexFields)
-		if encoding in equipresentVertices:
-			equipresentVertices[encoding].add(vertexEncoding)
-		else:
-			equipresentVertices[encoding] = {vertexEncoding}
-		
-		if vertexEncoding.vertex.position in identicalVertices:
-			#
-			# Merge equipresentVertices[encoding] and
-			#       equipresentVertices[identicalVertices[vertexEncoding.vertex.position]]
-			#
-			vertices1 = equipresentVertices[encoding]
-			vertices2 = equipresentVertices[identicalVertices[vertexEncoding.vertex.position]]
-			
-			#
-			# Merge the smaller into the larger. This keeps the algorithm
-			# from becoming O(N^2).
-			#
-			if len(vertices1) < len(vertices2):
-				(vertices1, vertices2) = (vertices2, vertices1)
-			
-			vertices1.update(vertices2)
-			for v in vertices2:
-				equipresentVertices[indistinguishableEncoding(v, mesh.vertexFields)] = vertices1
-		else:
-			identicalVertices[vertexEncoding.vertex.position] = encoding
-	
 	#
-	# Sort equipresentVertices in order in which they appear in mesh.vertexEncoding
+	# output[vertexEncoding] stores a VertexSet for a _mutable_ list of
+	# vertexEncodings, which will be filled in by the loop below.
 	#
 	output = {}
+	
 	for vertexEncoding in mesh.vertexEncoding:
-		if vertexEncoding in output:
-			output[vertexEncoding].vertices.append(vertexEncoding)
+		encoding = splitVertexKey(vertexEncoding, mesh.vertexFields)
+		if encoding not in equipresentVertices:
+			equipresentVertices[encoding] = [vertexEncoding]
+			output[vertexEncoding] = VertexSet(equipresentVertices[encoding])
 		else:
-			equipresent = equipresentVertices[indistinguishableEncoding(vertexEncoding, mesh.vertexFields)]
-			#
-			# All entries share a list object, allowing a single shared update
-			#
-			vertexSet = VertexSet([vertexEncoding])
-			for v in equipresent:
-				output[v] = vertexSet
+			equipresentVertices[encoding].append(vertexEncoding)
+			output[vertexEncoding] = output[equipresentVertices[encoding][0]]
 	
 	return output
 

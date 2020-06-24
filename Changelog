@@ -1,3 +1,7 @@
+0.4.1  2020-06-25
+
+	* Fixed an issue that would incorrectly merge vertices on split vertex export.
+
 0.4.0  2020-06-22
 
 	* Added support for automatically splitting overlarge meshes into multiple parts on export, and reconstructing them on import.

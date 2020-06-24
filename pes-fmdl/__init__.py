@@ -34,4 +34,4 @@ def register():
 def unregister():
 	UI.unregister()
 	
-	bpy.utils.unregister_class(MaterialParameter)
+	bpy.utils.unregister_class(FMDL_MaterialParameter)

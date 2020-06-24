@@ -1881,8 +1881,12 @@ class FmdlFile:
 		))
 		
 		# The old plugin needs all segment 1 blocks to be there, even if empty.
-		for i in range(4):
+		# Except for segment 1 block 1, which must be there if and only if there is a bone table.
+		for i in [0, 2, 3]:
 			if i not in fmdl.segment1Blocks:
+				fmdl.segment1Blocks[i] = bytearray()
+		if len(self.bones) > 0:
+			if 1 not in fmdl.segment1Blocks:
 				fmdl.segment1Blocks[i] = bytearray()
 		
 		fmdl.writeFile(filename)

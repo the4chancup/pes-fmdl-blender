@@ -1262,14 +1262,14 @@ class FmdlFile:
 		return ID
 	
 	@staticmethod
-	def addBone(fmdl, bone, boneIndices):
+	def addBone(fmdl, stringIndices, bone, boneIndices):
 		if bone.parent != None and bone.parent in boneIndices:
 			parentBoneID = boneIndices[bone.parent]
 		else:
 			parentBoneID = -1
 		
 		return FmdlFile.addSegment0Block(fmdl, 0, pack('< H h H H Q 4f 4f',
-			FmdlFile.addString(fmdl, bone.name),
+			FmdlFile.addString(fmdl, stringIndices, bone.name),
 			parentBoneID,
 			FmdlFile.addBoundingBox(fmdl, bone.boundingBox),
 			1, #unknown
@@ -1279,14 +1279,14 @@ class FmdlFile:
 		))
 	
 	@staticmethod
-	def addMeshGroup(fmdl, meshGroup, meshGroupIndices, meshIndices):
+	def addMeshGroup(fmdl, stringIndices, meshGroup, meshGroupIndices, meshIndices):
 		if meshGroup.parent == None:
 			parentMeshGroupID = -1
 		else:
 			parentMeshGroupID = meshGroupIndices[meshGroup.parent]
 		
 		meshGroupID = FmdlFile.addSegment0Block(fmdl, 1, pack('< H H h h',
-			FmdlFile.addString(fmdl, meshGroup.name),
+			FmdlFile.addString(fmdl, stringIndices, meshGroup.name),
 			1 if meshGroup.visible is False else 0,
 			parentMeshGroupID,
 			-1,
@@ -1373,21 +1373,21 @@ class FmdlFile:
 		))
 	
 	@staticmethod
-	def addMaterialInstance(fmdl, materialInstance):
-		nameStringID = FmdlFile.addString(fmdl, materialInstance.name)
-		materialID = FmdlFile.addMaterial(fmdl, materialInstance.shader, materialInstance.technique)
+	def addMaterialInstance(fmdl, stringIndices, materialInstance):
+		nameStringID = FmdlFile.addString(fmdl, stringIndices, materialInstance.name)
+		materialID = FmdlFile.addMaterial(fmdl, stringIndices, materialInstance.shader, materialInstance.technique)
 		
 		firstTextureAssignmentID = FmdlFile.newSegment0BlockDescriptorID(fmdl, 7)
 		textureCount = len(materialInstance.textures)
 		for (role, texture) in materialInstance.textures:
-			textureID = FmdlFile.addTexture(fmdl, texture.filename, texture.directory)
-			FmdlFile.addTextureMaterialParameterAssignment(fmdl, role, textureID)
+			textureID = FmdlFile.addTexture(fmdl, stringIndices, texture.filename, texture.directory)
+			FmdlFile.addTextureMaterialParameterAssignment(fmdl, stringIndices, role, textureID)
 		
 		firstMaterialParameterAssignmentID = FmdlFile.newSegment0BlockDescriptorID(fmdl, 7)
 		materialParameterCount = len(materialInstance.parameters)
 		for (parameter, values) in materialInstance.parameters:
 			materialParameterValuesID = FmdlFile.addMaterialParameterValues(fmdl, values)
-			FmdlFile.addTextureMaterialParameterAssignment(fmdl, parameter, materialParameterValuesID)
+			FmdlFile.addTextureMaterialParameterAssignment(fmdl, stringIndices, parameter, materialParameterValuesID)
 		
 		return FmdlFile.addSegment0Block(fmdl, 4, pack('< H H H BB H H I',
 			nameStringID,
@@ -1420,24 +1420,24 @@ class FmdlFile:
 		return (boneGroupID, boneGroupIndices)
 	
 	@staticmethod
-	def addTexture(fmdl, filename, directory):
+	def addTexture(fmdl, stringIndices, filename, directory):
 		return FmdlFile.addSegment0Block(fmdl, 6, pack('< H H',
-			FmdlFile.addString(fmdl, filename),
-			FmdlFile.addString(fmdl, directory),
+			FmdlFile.addString(fmdl, stringIndices, filename),
+			FmdlFile.addString(fmdl, stringIndices, directory),
 		))
 	
 	@staticmethod
-	def addTextureMaterialParameterAssignment(fmdl, parameterName, valueID):
+	def addTextureMaterialParameterAssignment(fmdl, stringIndices, parameterName, valueID):
 		return FmdlFile.addSegment0Block(fmdl, 7, pack('< H H',
-			FmdlFile.addString(fmdl, parameterName),
+			FmdlFile.addString(fmdl, stringIndices, parameterName),
 			valueID,
 		))
 	
 	@staticmethod
-	def addMaterial(fmdl, shader, technique):
+	def addMaterial(fmdl, stringIndices, shader, technique):
 		return FmdlFile.addSegment0Block(fmdl, 8, pack('< H H',
-			FmdlFile.addString(fmdl, shader),
-			FmdlFile.addString(fmdl, technique),
+			FmdlFile.addString(fmdl, stringIndices, shader),
+			FmdlFile.addString(fmdl, stringIndices, technique),
 		))
 	
 	@staticmethod
@@ -1540,9 +1540,12 @@ class FmdlFile:
 		))
 	
 	@staticmethod
-	def addString(fmdl, string):
+	def addString(fmdl, stringIndices, string):
 		if 3 not in fmdl.segment1Blocks:
 			fmdl.segment1Blocks[3] = bytearray()
+		
+		if string in stringIndices:
+			return stringIndices[string]
 		
 		encoded = bytes(string, 'utf-8')
 		offset = len(fmdl.segment1Blocks[3])
@@ -1550,11 +1553,13 @@ class FmdlFile:
 		fmdl.segment1Blocks[3] += encoded
 		fmdl.segment1Blocks[3] += b'\0'
 		
-		return FmdlFile.addSegment0Block(fmdl, 12, pack('< H H I',
+		index = FmdlFile.addSegment0Block(fmdl, 12, pack('< H H I',
 			3,
 			len(encoded),
 			offset,
 		))
+		stringIndices[string] = index
+		return index
 	
 	@staticmethod
 	def addBoundingBox(fmdl, boundingBox):
@@ -1784,7 +1789,7 @@ class FmdlFile:
 		fmdl.segment1Blocks[3] += b'\0'
 	
 	@staticmethod
-	def storeBones(fmdl, bones):
+	def storeBones(fmdl, stringIndices, bones):
 		boneIndices = {}
 		#
 		# If there are no bones, do not create an empty bone table.
@@ -1798,15 +1803,15 @@ class FmdlFile:
 			boneIndex += 1
 		
 		for bone in bones:
-			FmdlFile.addBone(fmdl, bone, boneIndices)
+			FmdlFile.addBone(fmdl, stringIndices, bone, boneIndices)
 		
 		return boneIndices
 	
 	@staticmethod
-	def storeMaterialInstances(fmdl, materialInstances):
+	def storeMaterialInstances(fmdl, stringIndices, materialInstances):
 		materialInstanceIndices = {}
 		for materialInstance in materialInstances:
-			materialInstanceIndices[materialInstance] = FmdlFile.addMaterialInstance(fmdl, materialInstance)
+			materialInstanceIndices[materialInstance] = FmdlFile.addMaterialInstance(fmdl, stringIndices, materialInstance)
 		return materialInstanceIndices
 	
 	@staticmethod
@@ -1841,7 +1846,7 @@ class FmdlFile:
 		return meshIndices
 	
 	@staticmethod
-	def storeMeshGroups(fmdl, meshGroups, meshIndices):
+	def storeMeshGroups(fmdl, stringIndices, meshGroups, meshIndices):
 		meshGroupIndices = {}
 		meshGroupIndex = FmdlFile.newSegment0BlockDescriptorID(fmdl, 1)
 		for meshGroup in meshGroups:
@@ -1849,7 +1854,7 @@ class FmdlFile:
 			meshGroupIndex += 1
 		
 		for meshGroup in meshGroups:
-			FmdlFile.addMeshGroup(fmdl, meshGroup, meshGroupIndices, meshIndices)
+			FmdlFile.addMeshGroup(fmdl, stringIndices, meshGroup, meshGroupIndices, meshIndices)
 		
 		return meshGroupIndices
 	
@@ -1865,11 +1870,12 @@ class FmdlFile:
 	def writeFile(self, filename):
 		fmdl = FmdlContainer()
 		
-		self.addString(fmdl, '')
-		boneIndices = self.storeBones(fmdl, self.bones)
-		materialInstanceIndices = self.storeMaterialInstances(fmdl, self.materialInstances)
+		stringIndices = {}
+		self.addString(fmdl, stringIndices, '')
+		boneIndices = self.storeBones(fmdl, stringIndices, self.bones)
+		materialInstanceIndices = self.storeMaterialInstances(fmdl, stringIndices, self.materialInstances)
 		meshIndices = self.storeMeshes(fmdl, self.meshes, boneIndices, materialInstanceIndices)
-		meshGroupIndices = self.storeMeshGroups(fmdl, self.meshGroups, meshIndices)
+		meshGroupIndices = self.storeMeshGroups(fmdl, stringIndices, self.meshGroups, meshIndices)
 		if self.extensionHeaders != None:
 			self.addExtensionHeaders(fmdl, self.extensionHeaders, meshIndices, meshGroupIndices)
 		

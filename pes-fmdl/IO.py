@@ -515,7 +515,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		for blenderMeshObject in blenderMeshObjects:
 			blenderMesh = blenderMeshObject.data
 			for blenderMaterial in blenderMesh.materials:
-				if blenderMaterial not in blenderMaterials:
+				if blenderMaterial is not None and blenderMaterial not in blenderMaterials:
 					blenderMaterials.append(blenderMaterial)
 		
 		materialInstances = []
@@ -805,11 +805,12 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		else:
 			raise FmdlExportError("Mesh '%s' has more than one color layer." % name)
 		
-		if len(blenderMesh.materials) == 0:
+		materials = [material for material in blenderMesh.materials if material is not None]
+		if len(materials) == 0:
 			raise FmdlExportError("Mesh '%s' does not have an associated material." % name)
-		if len(blenderMesh.materials) > 1:
-			raise FmdlExportError("Mesh '%s' has multiple associated materials." % name)
-		blenderMaterial = blenderMesh.materials[0]
+		if len(materials) > 1:
+			raise FmdlExportError("Mesh '%s' has multiple associated materials, including '%s' and '%s'." % (name, materials[0].name, materials[1].name))
+		blenderMaterial = materials[0]
 		
 		allUvMaps = []
 		colorUvMaps = []

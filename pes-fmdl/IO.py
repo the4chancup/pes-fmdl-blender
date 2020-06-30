@@ -13,7 +13,10 @@ class UnsupportedFmdl(Exception):
 
 class FmdlExportError(Exception):
 	def __init__(self, errors):
-		self.errors = errors
+		if isinstance(errors, list):
+			self.errors = errors
+		else:
+			self.errors = [errors]
 
 class ImportSettings:
 	def __init__(self):
@@ -565,7 +568,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			for blenderBone in blenderArmature.bones:
 				(bone, parentName) = exportBone(blenderBone)
 				if bone.name in boneArmatureNames:
-					raise InvalidFmdl("Bone '%s' present in multiple armatures '%s' and '%s'" % (
+					raise FmdlExportError("Bone '%s' present in multiple armatures '%s' and '%s'" % (
 						bone.name,
 						boneArmatureNames[boneFmdlObject.name],
 						blenderArmature.name
@@ -792,12 +795,12 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			blenderColorLayer = blenderMesh.vertex_colors[0]
 			vertexFields.hasColor = True
 		else:
-			raise InvalidFmdl("Mesh '%s' has more than one color layer." % name)
+			raise FmdlExportError("Mesh '%s' has more than one color layer." % name)
 		
 		if len(blenderMesh.materials) == 0:
-			raise InvalidFmdl("Mesh '%s' does not have an associated material.")
+			raise FmdlExportError("Mesh '%s' does not have an associated material.")
 		if len(blenderMesh.materials) > 1:
-			raise InvalidFmdl("Mesh '%s' has multiple associated materials.")
+			raise FmdlExportError("Mesh '%s' has multiple associated materials.")
 		blenderMaterial = blenderMesh.materials[0]
 		
 		allUvMaps = []
@@ -835,13 +838,13 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 					colorUvMaps = [allUvMaps[0]]
 		
 		if len(colorUvMaps) == 0:
-			raise InvalidFmdl("Mesh '%s' does not have a primary UV map set.")
+			raise FmdlExportError("Mesh '%s' does not have a primary UV map set.")
 		if len(colorUvMaps) > 1:
-			raise InvalidFmdl("Mesh '%s' has conflicting primary UV maps '%s' and '%s' set." % (colorUvMaps[0], colorUvMaps[1]))
+			raise FmdlExportError("Mesh '%s' has conflicting primary UV maps '%s' and '%s' set." % (colorUvMaps[0], colorUvMaps[1]))
 		if len(normalUvMaps) == 0:
-			raise InvalidFmdl("Mesh '%s' does not have a normals UV map set.")
+			raise FmdlExportError("Mesh '%s' does not have a normals UV map set.")
 		if len(normalUvMaps) > 1:
-			raise InvalidFmdl("Mesh '%s' has conflicting normals UV maps '%s' and '%s' set." % (normalUvMaps[0], normalUvMaps[1]))
+			raise FmdlExportError("Mesh '%s' has conflicting normals UV maps '%s' and '%s' set." % (normalUvMaps[0], normalUvMaps[1]))
 		
 		uvLayerColor = colorUvMaps[0]
 		vertexFields.uvCount = 1

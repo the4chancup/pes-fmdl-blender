@@ -806,9 +806,9 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			raise FmdlExportError("Mesh '%s' has more than one color layer." % name)
 		
 		if len(blenderMesh.materials) == 0:
-			raise FmdlExportError("Mesh '%s' does not have an associated material.")
+			raise FmdlExportError("Mesh '%s' does not have an associated material." % name)
 		if len(blenderMesh.materials) > 1:
-			raise FmdlExportError("Mesh '%s' has multiple associated materials.")
+			raise FmdlExportError("Mesh '%s' has multiple associated materials." % name)
 		blenderMaterial = blenderMesh.materials[0]
 		
 		allUvMaps = []
@@ -846,13 +846,13 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 					colorUvMaps = [allUvMaps[0]]
 		
 		if len(colorUvMaps) == 0:
-			raise FmdlExportError("Mesh '%s' does not have a primary UV map set.")
+			raise FmdlExportError("Mesh '%s' does not have a primary UV map set." % name)
 		if len(colorUvMaps) > 1:
-			raise FmdlExportError("Mesh '%s' has conflicting primary UV maps '%s' and '%s' set." % (colorUvMaps[0], colorUvMaps[1]))
+			raise FmdlExportError("Mesh '%s' has conflicting primary UV maps '%s' and '%s' set." % (name, colorUvMaps[0], colorUvMaps[1]))
 		if len(normalUvMaps) == 0:
-			raise FmdlExportError("Mesh '%s' does not have a normals UV map set.")
+			raise FmdlExportError("Mesh '%s' does not have a normals UV map set." % name)
 		if len(normalUvMaps) > 1:
-			raise FmdlExportError("Mesh '%s' has conflicting normals UV maps '%s' and '%s' set." % (normalUvMaps[0], normalUvMaps[1]))
+			raise FmdlExportError("Mesh '%s' has conflicting normals UV maps '%s' and '%s' set." % (name, normalUvMaps[0], normalUvMaps[1]))
 		
 		uvLayerColor = colorUvMaps[0]
 		vertexFields.uvCount = 1

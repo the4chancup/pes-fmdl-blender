@@ -499,7 +499,10 @@ def computeParentBones(bones):
 			#
 			ancestor = parent
 			while ancestor != None and ancestor != bone:
-				ancestor = parents[ancestor]
+				if ancestor in parents:
+					ancestor = parents[ancestor]
+				else:
+					ancestor = None
 			if ancestor != None:
 				parent = None
 		

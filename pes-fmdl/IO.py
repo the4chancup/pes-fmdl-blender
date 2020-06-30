@@ -528,73 +528,81 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		return (materialInstances, materialFmdlObjects)
 	
-	def exportBone(blenderBone):
+	def exportBone(name, parent, location):
 		bone = FmdlFile.FmdlFile.Bone()
-		bone.name = blenderBone.name
+		bone.name = name
+		bone.parent = parent
+		if parent is not None:
+			parent.children.append(bone)
+		(x, y, z) = location
+		bone.globalPosition = FmdlFile.FmdlFile.Vector4(x, y, z, 1.0)
+		bone.localPosition = FmdlFile.FmdlFile.Vector4(0.0, 0.0, 0.0, 0.0)
 		# Fill in bone.boundingBox later
-		
-		if blenderBone.name in PesSkeletonData.bones:
-			pesBone = PesSkeletonData.bones[blenderBone.name]
-			(x, y, z) = pesBone.startPosition
-			bone.globalPosition = FmdlFile.FmdlFile.Vector4(x, y, z, 1.0)
-			bone.localPosition = FmdlFile.FmdlFile.Vector4(0.0, 0.0, 0.0, 0.0)
-			parentName = pesBone.sklParent
-		else:
-			(tailX, tailY, tailZ) = blenderBone.tail_local
-			(headX, headY, headZ) = blenderBone.head_local
-			bone.globalPosition = FmdlFile.FmdlFile.Vector4(headX, headZ, -headY, 1.0)
-			bone.localPosition = FmdlFile.FmdlFile.Vector4(0.0, 0.0, 0.0, 0.0)
-			if blenderBone.parent == None:
-				parentName = None
-			else:
-				parentName = blenderBone.parent.name
-		
-		return (bone, parentName)
+		return bone
 	
 	def exportBones(blenderMeshObjects):
+		def findBone(boneName, armatures):
+			if boneName in PesSkeletonData.bones:
+				pesBone = PesSkeletonData.bones[boneName]
+				return (boneName, pesBone.sklParent, pesBone.startPosition)
+			
+			for armature in armatures:
+				for blenderBone in armature.bones:
+					if blenderBone.name == boneName:
+						if blenderBone.parent is None:
+							parentName = None
+						else:
+							parentName = blenderBone.parent.name
+						(headX, headY, headZ) = blenderBone.head_local
+						return (boneName, parentName, (headX, headZ, -headY))
+			
+			return (boneName, None, (0, 0, 0))
+		
 		blenderArmatures = []
+		blenderMeshArmatures = {}
 		for blenderMeshObject in blenderMeshObjects:
 			for modifier in blenderMeshObject.modifiers:
 				if modifier.type == 'ARMATURE':
 					blenderArmature = modifier.object.data
-					if blenderArmature not in blenderArmatures:
-						blenderArmatures.append(blenderArmature)
+					blenderArmatures.append(blenderArmature)
+					if blenderMeshObject not in blenderMeshArmatures:
+						blenderMeshArmatures[blenderMeshObject] = []
+					blenderMeshArmatures[blenderMeshObject].append(blenderArmature)
 		
-		bones = []
-		bonesByName = {}
-		boneParentNames = {}
-		boneArmatureNames = {}
+		bones = {}
+		for blenderMeshObject in blenderMeshObjects:
+			boneNames = [vertexGroup.name for vertexGroup in blenderMeshObject.vertex_groups]
+			armatures = (
+				blenderMeshArmatures[blenderMeshObject] +
+				[armature for armature in blenderArmatures if armature not in blenderMeshArmatures[blenderMeshObject]]
+			)
+			for boneName in boneNames:
+				if boneName not in bones:
+					bones[boneName] = findBone(boneName, armatures)
 		for blenderArmature in blenderArmatures:
 			for blenderBone in blenderArmature.bones:
-				(bone, parentName) = exportBone(blenderBone)
-				if bone.name in boneArmatureNames:
-					raise FmdlExportError("Bone '%s' present in multiple armatures '%s' and '%s'" % (
-						bone.name,
-						boneArmatureNames[boneFmdlObject.name],
-						blenderArmature.name
-					))
-				
-				bones.append(bone)
-				bonesByName[bone.name] = bone
-				boneParentNames[bone.name] = parentName
-				boneArmatureNames[bone.name] = blenderArmature.name
-		
-		for bone in bones:
-			parentName = boneParentNames[bone.name]
-			if parentName is not None and parentName in bonesByName:
-				parent = bonesByName[parentName]
-				bone.parent = parent
-				parent.children.append(bone)
+				boneName = blenderBone.name
+				if boneName not in bones:
+					bones[boneName] = findBone(boneName, [blenderArmature])
 		
 		orderedBones = []
-		def addOrderedBone(bone):
-			if bone in orderedBones:
+		bonesByName = {}
+		def addOrderedBone(boneName):
+			if boneName in bonesByName:
 				return
-			if bone.parent != None:
-				addOrderedBone(bone.parent)
+			(name, parentName, location) = bones[boneName]
+			if parentName is not None and parentName not in bones:
+				parentName = None
+			if parentName is not None:
+				addOrderedBone(parentName)
+				parent = bonesByName[parentName]
+			else:
+				parent = None
+			bone = exportBone(name, parent, location)
 			orderedBones.append(bone)
-		for bone in bones:
-			addOrderedBone(bone)
+			bonesByName[boneName] = bone
+		for boneName in bones.keys():
+			addOrderedBone(boneName)
 		
 		return (orderedBones, bonesByName)
 	

@@ -1887,6 +1887,6 @@ class FmdlFile:
 				fmdl.segment1Blocks[i] = bytearray()
 		if len(self.bones) > 0:
 			if 1 not in fmdl.segment1Blocks:
-				fmdl.segment1Blocks[i] = bytearray()
+				fmdl.segment1Blocks[1] = bytearray()
 		
 		fmdl.writeFile(filename)

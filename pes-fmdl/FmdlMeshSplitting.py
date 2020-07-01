@@ -130,10 +130,9 @@ class BoneDescendentStorableItems:
 		
 		# None functions as the root bone.
 		self.itemsPerBone[None] = StorableItems()
-		if parentBones is None:
-			self.itemsPerBone[None].faces = set(encodedFaceIndices.keys())
-			self.itemsPerBone[None].looseVertices = looseVertexSets
-		else:
+		self.itemsPerBone[None].faces = set(encodedFaceIndices.keys())
+		self.itemsPerBone[None].looseVertices = looseVertexSets.copy()
+		if parentBones is not None:
 			for bone in parentBones.keys():
 				self.itemsPerBone[bone] = StorableItems()
 			
@@ -141,12 +140,10 @@ class BoneDescendentStorableItems:
 				for vertex in face.vertices:
 					for (bone, weight) in vertex.boneMapping:
 						currentBone = bone
-						while True:
+						while currentBone is not None:
 							if face in self.itemsPerBone[currentBone].faces:
 								break
 							self.itemsPerBone[currentBone].faces.add(face)
-							if currentBone is None:
-								break
 							currentBone = parentBones[currentBone]
 			
 			for vertexSet in looseVertexSets:
@@ -157,12 +154,10 @@ class BoneDescendentStorableItems:
 				vertex = vertexSet.vertices[0]
 				for (bone, weight) in vertex.boneMapping:
 					currentBone = bone
-					while True:
+					while currentBone is not None:
 						if vertexSet in self.itemsPerBone[currentBone].looseVertices:
 							break
 						self.itemsPerBone[currentBone].looseVertices.add(vertexSet)
-						if currentBone is None:
-							break
 						currentBone = parentBones[currentBone]
 	
 	def get(self, bone):

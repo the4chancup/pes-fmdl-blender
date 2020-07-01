@@ -1,3 +1,8 @@
+0.4.5  2020-07-01
+
+	* Fixed an issue where mesh splitting would delete bones without any weight painting.
+	* Added support for meshes with null materials assigned.
+
 0.4.4  2020-06-30
 
 	* Implemented fmdl string packing.

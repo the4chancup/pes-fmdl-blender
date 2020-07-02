@@ -389,6 +389,14 @@ class FMDL_Mesh_BoneGroup_List(bpy.types.UIList):
 		else:
 			row.prop(item, 'fmdl_bone_in_active_mesh', text = '')
 			row.label(text = item.name)
+	
+	def filter_items(self, context, data, propname):
+		boneNames = [bone.name for bone in data.bones]
+		indices = {}
+		for name in sorted(boneNames):
+			indices[name] = len(indices)
+		order = [indices[name] for name in boneNames]
+		return ([], order)
 
 class FMDL_Mesh_BoneGroup_RemoveUnused(bpy.types.Operator):
 	"""Remove bones not bound to any vertices"""

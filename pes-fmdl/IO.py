@@ -606,7 +606,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		return (orderedBones, bonesByName)
 	
-	def exportMeshGeometry(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector, scene):
+	def exportMeshGeometry(blenderMeshObject, colorLayer, uvLayerColor, uvLayerNormal, boneVector, scene):
 		#
 		# Setup a modified version of the mesh data that can be fiddled with.
 		#
@@ -730,8 +730,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			loop.tangents = [blenderLoop.tangent]
 			loop.loopIndices = [i]
 			
-			if blenderColorLayer != None:
-				loop.color = [c for c in blenderColorLayer.data[i].color] + [1.0]
+			if colorLayer is not None:
+				loop.color = [c for c in modifiedBlenderMesh.vertex_colors[colorLayer].data[i].color] + [1.0]
 			loop.uv.append(FmdlFile.FmdlFile.Vector2(
 				modifiedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[0],
 				1.0 - modifiedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[1],
@@ -797,10 +797,10 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		vertexFields.hasTangent = True
 		
 		if len(blenderMesh.vertex_colors) == 0:
-			blenderColorLayer = None
+			colorLayer = None
 			vertexFields.hasColor = False
 		elif len(blenderMesh.vertex_colors) == 1:
-			blenderColorLayer = blenderMesh.vertex_colors[0]
+			colorLayer = 0
 			vertexFields.hasColor = True
 		else:
 			raise FmdlExportError("Mesh '%s' has more than one color layer." % name)
@@ -868,7 +868,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		if len(boneVector) > 0:
 			vertexFields.hasBoneMapping = True
 		
-		(vertices, faces) = exportMeshGeometry(blenderMeshObject, blenderColorLayer, uvLayerColor, uvLayerNormal, boneVector, scene)
+		(vertices, faces) = exportMeshGeometry(blenderMeshObject, colorLayer, uvLayerColor, uvLayerNormal, boneVector, scene)
 		
 		mesh = FmdlFile.FmdlFile.Mesh()
 		mesh.vertices = vertices

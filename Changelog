@@ -1,3 +1,8 @@
+0.4.6  2020-07-02
+
+	* Added alphabetic ordering to the bone group panel.
+	* Fixed a bug with automatic triangulation of meshes containing color data.
+
 0.4.5  2020-07-01
 
 	* Fixed an issue where mesh splitting would delete bones without any weight painting.

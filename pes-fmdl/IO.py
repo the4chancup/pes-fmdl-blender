@@ -561,12 +561,11 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		blenderArmatures = []
 		blenderMeshArmatures = {}
 		for blenderMeshObject in blenderMeshObjects:
+			blenderMeshArmatures[blenderMeshObject] = []
 			for modifier in blenderMeshObject.modifiers:
 				if modifier.type == 'ARMATURE':
 					blenderArmature = modifier.object.data
 					blenderArmatures.append(blenderArmature)
-					if blenderMeshObject not in blenderMeshArmatures:
-						blenderMeshArmatures[blenderMeshObject] = []
 					blenderMeshArmatures[blenderMeshObject].append(blenderArmature)
 		
 		bones = {}

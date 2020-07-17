@@ -1029,17 +1029,18 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		meshGroup.boundingBox = FmdlFile.FmdlFile.BoundingBox(
 			FmdlFile.FmdlFile.Vector4(
 				min(box.min.x for box in boundingBoxes),
-				min(box.min.z for box in boundingBoxes),
+				min(box.min.y for box in boundingBoxes),
 				min(box.min.z for box in boundingBoxes),
 				1.0
 			),
 			FmdlFile.FmdlFile.Vector4(
 				max(box.max.x for box in boundingBoxes),
-				max(box.max.z for box in boundingBoxes),
+				max(box.max.y for box in boundingBoxes),
 				max(box.max.z for box in boundingBoxes),
 				1.0
 			)
 		)
+		
 		return meshGroup.boundingBox
 	
 	def calculateBoundingBoxes(meshGroups, bones, meshes):

@@ -1,4 +1,8 @@
-0.4.7  2020-07-1
+0.4.8  2020-07-17
+
+	* Fixed a bug exporting bounding boxes.
+
+0.4.7  2020-07-10
 
 	* Fixed exporting of boneless models.
 

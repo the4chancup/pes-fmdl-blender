@@ -1,0 +1,38 @@
+# Creates blender addons ready for distribution on Blender 2.79 and > 2.8x
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Prepares working directory
+        working-directory: ${{ github.workspace }}
+        run: mkdir packages && cp -R pes-fmdl packages/
+           
+      - name: Pack 2.7
+        working-directory: ${{ github.workspace }}/packages
+        run: zip -r pes-fmdl-blender-2-79.zip pes-fmdl && zip -d pes-fmdl-blender-2-79.zip pes-fmdl/__init__2-8x.py
+
+      - name: Pack 2.8
+        working-directory: ${{ github.workspace }}/packages
+        run: mv pes-fmdl/__init__2-8x.py pes-fmdl/__init__.py && zip -r pes-fmdl-blender-2-8x.zip pes-fmdl
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file_glob: true
+          file: packages/pes-fmdl-blender*.zip
+          tag: ${{ github.ref }}
+          overwrite: true
+          body: "Plugins for Blender 2.79 and 2.8x"
+          

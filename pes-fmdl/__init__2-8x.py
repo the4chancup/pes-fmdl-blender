@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "PES FMDL format",
 	"author": "foreground",
-	"blender": (2, 79, 0),
+	"blender": (2, 80, 0),
 	"category": "Import-Export",
 	"version": (0, 5, 0),
 }

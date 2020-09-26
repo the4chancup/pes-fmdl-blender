@@ -1618,7 +1618,7 @@ class FmdlFile:
 					(vertex.tangent.x, vertex.tangent.y, vertex.tangent.z, vertex.tangent.w)
 				))
 			if vertexFields.hasColor:
-				vertexEncoding.color = pack('< 4B', *(int(x * 255 + 0.5) for x in vertex.color))
+				vertexEncoding.color = pack('< 4B', *(int(x * 255 + 0.5) for x in vertex.color[0:4]))
 			for i in range(4):
 				if i < vertexFields.uvCount:
 					vertexEncoding.uv.append(pack('< 2H', *(FmdlFile.encodeFloat16(x) for x in

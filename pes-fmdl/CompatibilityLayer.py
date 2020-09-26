@@ -45,7 +45,23 @@ class CompatibilityLayerBase(object):
 	@classmethod
 	def TriangulateMesh(cls, modifiedBlenderMesh, scene):
 		pass
+	
+	@classmethod
+	def AppendToImportMenu(cls, newMenuItem):
+		pass
+	
+	@classmethod
+	def AppendToExportMenu(cls, newMenuItem):
+		pass
+		
+	@classmethod
+	def AppendScenePostUpdateEvent(cls, event):
+		pass
 
+	@classmethod
+	def RemoveSceneUpdatePostEvent(cls, eventHandler):
+		pass
+	
 	def __init__(self):
 		pass
 
@@ -242,8 +258,25 @@ class CompatibilityLayer27(CompatibilityLayerBase):
 	def AppendToExportMenu(cls, newMenuItem):
 		bpy.types.INFO_MT_file_export.append(newMenuItem)
 	
+	@classmethod
+	def AppendScenePostUpdateEvent(cls, eventHandler):
+		bpy.app.handlers.scene_update_post.append(eventHandler)
+		
+	@classmethod
+	def RemoveSceneUpdatePostEvent(cls, eventHandler):
+		bpy.app.handlers.scene_update_post.remove(eventHandler)
+
+	@classmethod
+	def RemoveFromExportMenu(cls, menuItem):
+		bpy.types.INFO_MT_file_export.remove(menuItem)
+
+	@classmethod
+	def RemoveFromImportMenu(cls, menuItem):
+		bpy.types.INFO_MT_file_import.remove(menuItem)
+	
 	def __init__(self):
 		super().__init__()
+
 
 class CompatibilityLayer29(CompatibilityLayerBase):
 
@@ -386,6 +419,22 @@ class CompatibilityLayer29(CompatibilityLayerBase):
 	def AppendToExportMenu(cls, newMenuItem):
 		bpy.types.TOPBAR_MT_file_export.append(newMenuItem)
 	
+	@classmethod
+	def AppendSceneUpdatePostEvent(cls, eventHandler):
+		bpy.app.handlers.depsgraph_update_post.append(eventHandler)
+	
+	@classmethod
+	def RemoveSceneUpdatePostEvent(cls, eventHandler):
+		bpy.app.handlers.depsgraph_update_post.remove(eventHandler)
+
+	@classmethod
+	def RemoveFromExportMenu(cls, menuItem):
+		bpy.types.TOPBAR_MT_file_export.remove(menuItem)
+
+	@classmethod
+	def RemoveFromImportMenu(cls, menuItem):
+		bpy.types.TOPBAR_MT_file_import.remove(menuItem)
+
 	def __init__(self):
 		super().__init__()
 
@@ -432,3 +481,15 @@ class CompatibilityLayer:
 	
 	def AppendToExportMenu(self, newMenuItem):
 		self.shim.AppendToExportMenu(newMenuItem)
+	
+	def AppendSceneUpdatePostEvent(self, eventHandler):
+		self.shim.AppendSceneUpdatePostEvent(eventHandler)
+		
+	def RemoveSceneUpdatePostEvent(self, eventHandler):
+		self.shim.RemoveSceneUpdatePostEvent(eventHandler)
+	
+	def RemoveFromExportMenu(self, menuItem):
+		self.shim.RemoveFromExportMenu(menuItem)
+	
+	def RemoveFromImportMenu(self, menuItem):
+		self.shim.RemoveFromImportMenu(menuItem)

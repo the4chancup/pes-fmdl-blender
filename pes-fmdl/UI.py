@@ -809,14 +809,15 @@ def register():
 	shim.AppendToExportMenu(FMDL_Scene_FMDL_Export_MenuItem)
 	bpy.types.TEXTURE_PT_image.append(FMDL_Texture_Load_Ftex_Button)
 	
-	bpy.app.handlers.scene_update_post.append(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
+	shim.AppendSceneUpdatePostEvent(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
 
 def unregister():
-	bpy.app.handlers.scene_update_post.remove(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
+	shim = CompatibilityLayer.CompatibilityLayer()
+	shim.RemoveSceneUpdatePostEvent(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
 	
 	bpy.types.TEXTURE_PT_image.remove(FMDL_Texture_Load_Ftex_Button)
-	bpy.types.INFO_MT_file_export.remove(FMDL_Scene_FMDL_Export_MenuItem)
-	bpy.types.INFO_MT_file_import.remove(FMDL_Scene_FMDL_Import_MenuItem)
+	shim.RemoveFromExportMenu(FMDL_Scene_FMDL_Export_MenuItem)
+	shim.RemoveFromImportMenu(FMDL_Scene_FMDL_Import_MenuItem)
 	
 	for c in classes[::-1]:
 		bpy.utils.unregister_class(c)

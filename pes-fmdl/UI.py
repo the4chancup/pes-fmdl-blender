@@ -243,11 +243,17 @@ class FMDL_Scene_Panel(bpy.types.Panel):
 	bl_space_type = "PROPERTIES"
 	bl_region_type = "WINDOW"
 	bl_context = "scene"
+	bl_icon_file_selection = 'FILESEL'
 	
 	@classmethod
 	def poll(cls, context):
 		return context.scene != None
 	
+	def __init__(self):
+		(major, minor, build) = bpy.app.version
+		if minor > 79:
+			self.bl_icon_file_selection = 'FILEBROWSER'
+
 	def draw(self, context):
 		scene = context.scene
 		
@@ -268,12 +274,12 @@ class FMDL_Scene_Panel(bpy.types.Panel):
 			column = box.column()
 			
 			row = column.row()
-			row.label("Object: %s" % object.name)
+			row.label(text = "Object: %s" % object.name)
 			row.operator(FMDL_Scene_Panel_FMDL_Remove.bl_idname, text = "", icon = 'X').objectName = object.name
 			
 			row = column.row(align = True)
 			row.prop(object, 'fmdl_filename', text = "Export Path")
-			row.operator(FMDL_Scene_Panel_FMDL_Select_Filename.bl_idname, text = "", icon = 'FILESEL').objectName = object.name
+			row.operator(FMDL_Scene_Panel_FMDL_Select_Filename.bl_idname, text = "", icon = self.bl_icon_file_selection).objectName = object.name
 			
 			row = column.row()
 			row.operator_context = 'EXEC_DEFAULT'

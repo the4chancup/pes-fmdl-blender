@@ -2,7 +2,7 @@ import bpy
 import bpy.props
 import bpy_extras.io_utils
 
-from . import FmdlFile, Ftex, IO
+from . import FmdlFile, Ftex, IO, CompatibilityLayer
 
 
 
@@ -36,7 +36,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	bl_idname = "import_scene.fmdl"
 	bl_label = "Import Fmdl"
 	bl_options = {'REGISTER', 'UNDO'}
-	
+
 	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
 	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
@@ -781,6 +781,7 @@ classes = [
 
 
 def register():
+	shim = CompatibilityLayer.CompatibilityLayer()
 	bpy.types.Object.fmdl_file = bpy.props.BoolProperty(name = "Is FMDL file", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_filename = bpy.props.StringProperty(name = "FMDL filename", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_export_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
@@ -804,8 +805,8 @@ def register():
 	for c in classes:
 		bpy.utils.register_class(c)
 	
-	bpy.types.INFO_MT_file_import.append(FMDL_Scene_FMDL_Import_MenuItem)
-	bpy.types.INFO_MT_file_export.append(FMDL_Scene_FMDL_Export_MenuItem)
+	shim.AppendToImportMenu(FMDL_Scene_FMDL_Import_MenuItem)
+	shim.AppendToExportMenu(FMDL_Scene_FMDL_Export_MenuItem)
 	bpy.types.TEXTURE_PT_image.append(FMDL_Texture_Load_Ftex_Button)
 	
 	bpy.app.handlers.scene_update_post.append(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)

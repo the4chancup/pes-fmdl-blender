@@ -233,10 +233,17 @@ class CompatibilityLayer27(CompatibilityLayerBase):
 		bpy.data.objects.remove(modifiedBlenderObject)
 		bpy.data.meshes.remove(modifiedBlenderMesh)
 		modifiedBlenderMesh = newBlenderMesh
-
+	
+	@classmethod
+	def AppendToImportMenu(cls, newMenuItem):
+		bpy.types.INFO_MT_file_import.append(newMenuItem)
+	
+	@classmethod
+	def AppendToExportMenu(cls, newMenuItem):
+		bpy.types.INFO_MT_file_export.append(newMenuItem)
+	
 	def __init__(self):
-		pass
-
+		super().__init__()
 
 class CompatibilityLayer29(CompatibilityLayerBase):
 
@@ -371,8 +378,16 @@ class CompatibilityLayer29(CompatibilityLayerBase):
 		blenderBmesh.to_mesh(modifiedBlenderMesh)
 		blenderBmesh.free()
 
+	@classmethod
+	def AppendToImportMenu(cls, newMenuItem):
+		bpy.types.TOPBAR_MT_file_import.append(newMenuItem)
+	
+	@classmethod
+	def AppendToExportMenu(cls, newMenuItem):
+		bpy.types.TOPBAR_MT_file_export.append(newMenuItem)
+	
 	def __init__(self):
-		pass
+		super().__init__()
 
 
 class CompatibilityLayer:
@@ -411,3 +426,9 @@ class CompatibilityLayer:
 
 	def TriangulateMesh(self, modifiedBlenderMesh, scene):
 		self.shim.TriangulateMesh(modifiedBlenderMesh, scene)
+	
+	def AppendToImportMenu(self, newMenuItem):
+		self.shim.AppendToImportMenu(newMenuItem)
+	
+	def AppendToExportMenu(self, newMenuItem):
+		self.shim.AppendToExportMenu(newMenuItem)

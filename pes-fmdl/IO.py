@@ -3,20 +3,16 @@ import mathutils
 import itertools
 import os
 import os.path
-import re
 
 from . import FmdlFile, FmdlMeshSplitting, FmdlSplitVertexEncoding, Ftex, PesSkeletonData
+from .CompatibilityLayer import CompatibilityLayer, FmdlExportError
+
+shim = CompatibilityLayer()
 
 
 class UnsupportedFmdl(Exception):
 	pass
 
-class FmdlExportError(Exception):
-	def __init__(self, errors):
-		if isinstance(errors, list):
-			self.errors = errors
-		else:
-			self.errors = [errors]
 
 class ImportSettings:
 	def __init__(self):
@@ -31,7 +27,6 @@ class ExportSettings:
 		self.enableMeshSplitting = True
 
 
-
 def setActiveObject(context, blenderObject):
 	if 'view_layer' in dir(context):
 		context.view_layer.objects.active = blenderObject
@@ -44,104 +39,13 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	UV_MAP_COLOR = 'UVMap'
 	UV_MAP_NORMALS = 'normal_map'
 	
-	def findTexture(texture, textureSearchPath):
-		textureFilename = texture.directory.replace('\\', '/').rstrip('/') + '/' + texture.filename.replace('\\', '/').lstrip('/')
-		textureFilenameComponents = tuple(filter(None, textureFilename.split('/')))
-		filename = textureFilenameComponents[-1]
-		directory = textureFilenameComponents[:-1]
-		directorySuffixes = [directory[i:] for i in range(len(directory) + 1)]
-		
-		if filename == 'kit.dds':
-			filenames = []
-		else:
-			filenames = [filename]
-			position = filename.rfind('.')
-			if position >= 0:
-				for extension in ['dds', 'tga', 'ftex']:
-					modifiedFilename = filename[:position + 1] + extension
-					if modifiedFilename not in filenames:
-						filenames.append(modifiedFilename)
-		
-		for searchDirectory in textureSearchPath:
-			for suffix in directorySuffixes:
-				for filename in filenames:
-					fullFilename = os.path.join(searchDirectory, *suffix, filename)
-					if os.path.isfile(fullFilename):
-						return fullFilename
-				
-				if len(filenames) == 0:
-					directory = os.path.join(searchDirectory, *suffix)
-					if not os.path.isdir(directory):
-						continue
-					
-					try:
-						entries = os.listdir(directory)
-					except:
-						continue
-					for entry in entries:
-						if re.match('^u[0-9]{4}p1\.dds$', entry, flags = re.IGNORECASE):
-							fullFilename = os.path.join(directory, entry)
-							if os.path.isfile(fullFilename):
-								return fullFilename
-		
-		return None
-	
 	def addTexture(blenderMaterial, textureRole, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath):
-		identifier = (textureRole, texture)
-		if identifier in textureIDs:
-			blenderTexture = bpy.data.textures[textureIDs[identifier]]
-		else:
-			blenderImage = bpy.data.images.new(texture.filename, width = 0, height = 0)
-			blenderImage.source = 'FILE'
-			
-			if '_SRGB' in textureRole:
-				blenderImage.colorspace_settings.name = 'sRGB'
-			elif '_LIN' in textureRole:
-				blenderImage.colorspace_settings.name = 'Linear'
-			else:
-				blenderImage.colorspace_settings.name = 'Non-Color'
-			
-			filename = findTexture(texture, textureSearchPath)
-			hasAlpha = True
-			if filename == None:
-				blenderImage.filepath = texture.directory + texture.filename
-			elif filename.lower().endswith('.ftex'):
-				blenderImage.filepath = filename
-				Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir)
-				# Many (all?) ftex files in PES have nonsensical alpha data.
-				hasAlpha = False
-			else:
-				blenderImage.filepath = filename
-				blenderImage.reload()
-			
-			textureName = "[%s] %s" % (textureRole, texture.filename)
-			blenderTexture = bpy.data.textures.new(textureName, type = 'IMAGE')
-			blenderTexture.image = blenderImage
-			blenderTexture.use_alpha = hasAlpha
-			
-			if '_NRM' in textureRole:
-				blenderTexture.use_normal_map = True
-			
-			textureIDs[identifier] = blenderTexture.name
-		
-		blenderTextureSlot = blenderMaterial.texture_slots.add()
-		blenderTextureSlot.texture = blenderTexture
-		blenderTextureSlot.texture_coords = 'UV'
-		if '_NRM' in textureRole:
-			blenderTextureSlot.uv_layer = uvMapNormals
-		else:
-			blenderTextureSlot.uv_layer = uvMapColor
-		
-		if textureRole == 'Base_Tex_SRGB' or textureRole == 'Base_Tex_LIN':
-			blenderTextureSlot.use_map_diffuse = True
-			blenderTextureSlot.use_map_color_diffuse = True
-			blenderTextureSlot.use = True
-		else:
-			blenderTextureSlot.use = False
-		
-		blenderTexture.fmdl_texture_filename = texture.filename
-		blenderTexture.fmdl_texture_directory = texture.directory
-		blenderTexture.fmdl_texture_role = textureRole
+		blenderTexture = shim.addTexture(blenderMaterial, textureRole, texture, textureIDs, uvMapColor, uvMapNormals,
+										 textureSearchPath)
+		if blenderTexture is not None:
+			blenderTexture.fmdl_texture_filename = texture.filename
+			blenderTexture.fmdl_texture_directory = texture.directory
+			blenderTexture.fmdl_texture_role = textureRole
 	
 	def materialHasSeparateUVMaps(materialInstance, fmdl):
 		for mesh in fmdl.meshes:
@@ -172,7 +76,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			else:
 				uvMapNormals = UV_MAP_COLOR
 			
-			blenderMaterial.emit = 1.0
+			shim.setEmission(blenderMaterial, 1.0)
 			
 			for (role, texture) in materialInstance.textures:
 				addTexture(blenderMaterial, role, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath)
@@ -233,7 +137,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		blenderArmatureObject = bpy.data.objects.new("Skeleton", blenderArmature)
 		armatureObjectID = blenderArmatureObject.name
 		
-		context.scene.objects.link(blenderArmatureObject)
+		shim.linkObjectToScene(blenderArmatureObject)
 		setActiveObject(context, blenderArmatureObject)
 		
 		bpy.ops.object.mode_set(context.copy(), mode = 'EDIT')
@@ -261,7 +165,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		vertexGroupIDs = {}
 		for bone in boneGroup.bones:
 			blenderBone = blenderArmature.bones[boneIDs[bone]]
-			blenderVertexGroup = blenderMeshObject.vertex_groups.new(blenderBone.name)
+			blenderVertexGroup = blenderMeshObject.vertex_groups.new(name=blenderBone.name)
 			vertexGroupIDs[bone] = blenderVertexGroup.name
 		return vertexGroupIDs
 	
@@ -311,7 +215,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		if mesh.vertexFields.hasColor:
 			colorLayer = blenderMesh.vertex_colors.new()
 			colorLayer.data.foreach_set("color", tuple(itertools.chain.from_iterable([
-				vertex.color[0:3] for vertex in loopVertices
+				shim.GetColorFromVertex(vertex) for vertex in loopVertices
 			])))
 			colorLayer.active = True
 			colorLayer.active_render = True
@@ -353,7 +257,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		blenderMeshObject = bpy.data.objects.new(blenderMesh.name, blenderMesh)
 		meshObjectID = blenderMeshObject.name
-		context.scene.objects.link(blenderMeshObject)
+		shim.linkObjectToScene(blenderMeshObject)
 		
 		if mesh.vertexFields.hasBoneMapping:
 			vertexGroupIDs = addSkeletonMeshModifier(blenderMeshObject, mesh.boneGroup, armatureObjectID, boneIDs)
@@ -389,7 +293,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			blenderMeshGroupObject = bpy.data.objects[meshObjectIDs[meshGroup.meshes[0]]]
 		else:
 			blenderMeshGroupObject = bpy.data.objects.new(meshGroup.name, None)
-			context.scene.objects.link(blenderMeshGroupObject)
+			shim.linkObjectToScene(blenderMeshGroupObject)
 			
 			for mesh in meshGroup.meshes:
 				bpy.data.objects[meshObjectIDs[mesh]].parent = blenderMeshGroupObject
@@ -490,10 +394,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 	def exportMaterial(blenderMaterial, textureFmdlObjects):
 		materialInstance = FmdlFile.FmdlFile.MaterialInstance()
 		
-		for slot in blenderMaterial.texture_slots:
-			if slot == None:
-				continue
-			blenderTexture = slot.texture
+		for blenderTexture in shim.iterateTextureSlots(blenderMaterial):
 			if blenderTexture not in textureFmdlObjects:
 				texture = FmdlFile.FmdlFile.Texture()
 				texture.filename = blenderTexture.fmdl_texture_filename
@@ -622,16 +523,10 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			#
 			# calc_tangents() only works on triangulated meshes
 			#
-			
-			modifiedBlenderObject = bpy.data.objects.new('triangulation', modifiedBlenderMesh)
-			modifiedBlenderObject.modifiers.new('triangulation', 'TRIANGULATE')
-			newBlenderMesh = modifiedBlenderObject.to_mesh(scene, True, 'PREVIEW', calc_undeformed = True)
-			bpy.data.objects.remove(modifiedBlenderObject)
-			bpy.data.meshes.remove(modifiedBlenderMesh)
-			modifiedBlenderMesh = newBlenderMesh
+			shim.TriangulateMesh(modifiedBlenderMesh, scene)
 		
 		modifiedBlenderMesh.use_auto_smooth = True
-		modifiedBlenderMesh.calc_tangents(uvLayerColor)
+		modifiedBlenderMesh.calc_tangents(uvmap=uvLayerColor)
 		
 		
 		
@@ -811,57 +706,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			raise FmdlExportError("Mesh '%s' has multiple associated materials, including '%s' and '%s'." % (name, materials[0].name, materials[1].name))
 		blenderMaterial = materials[0]
 		
-		allUvMaps = []
-		colorUvMaps = []
-		normalUvMaps = []
-		for slot in blenderMaterial.texture_slots:
-			if slot == None:
-				continue
-			uvLayerName = slot.uv_layer
-			if uvLayerName not in blenderMesh.uv_layers:
-				continue
-			if '_NRM' in slot.texture.fmdl_texture_role:
-				uvMaps = normalUvMaps
-			else:
-				uvMaps = colorUvMaps
-			if uvLayerName not in allUvMaps:
-				allUvMaps.append(uvLayerName)
-			if uvLayerName not in uvMaps:
-				uvMaps.append(uvLayerName)
-		if len(allUvMaps) == 1:
-			if len(colorUvMaps) == 0:
-				colorUvMaps.append(allUvMaps[0])
-			if len(normalUvMaps) == 0:
-				normalUvMaps.append(allUvMaps[0])
-		elif len(allUvMaps) == 2:
-			if len(colorUvMaps) == 1 and len(normalUvMaps) == 2:
-				if allUvMaps[0] == colorUvMaps[0]:
-					normalUvMaps = [allUvMaps[1]]
-				else:
-					normalUvMaps = [allUvMaps[0]]
-			elif len(colorUvMaps) == 2 and len(normalUvMaps) == 1:
-				if allUvMaps[0] == normalUvMaps[0]:
-					colorUvMaps = [allUvMaps[1]]
-				else:
-					colorUvMaps = [allUvMaps[0]]
-		
-		if len(colorUvMaps) == 0:
-			raise FmdlExportError("Mesh '%s' does not have a primary UV map set." % name)
-		if len(colorUvMaps) > 1:
-			raise FmdlExportError("Mesh '%s' has conflicting primary UV maps '%s' and '%s' set." % (name, colorUvMaps[0], colorUvMaps[1]))
-		if len(normalUvMaps) == 0:
-			raise FmdlExportError("Mesh '%s' does not have a normals UV map set." % name)
-		if len(normalUvMaps) > 1:
-			raise FmdlExportError("Mesh '%s' has conflicting normals UV maps '%s' and '%s' set." % (name, normalUvMaps[0], normalUvMaps[1]))
-		
-		uvLayerColor = colorUvMaps[0]
-		vertexFields.uvCount = 1
-		
-		if normalUvMaps[0] == uvLayerColor:
-			uvLayerNormal = None
-		else:
-			uvLayerNormal = normalUvMaps[0]
-			vertexFields.uvCount += 1
+		vertexFields.uvCount = 0
+		(uvLayerColor, uvLayerNormal) = shim.ExportUVMaps(blenderMaterial, blenderMesh, name, vertexFields)
 		
 		boneVector = [bonesByName[vertexGroup.name] for vertexGroup in blenderMeshObject.vertex_groups]
 		if len(boneVector) > 0:

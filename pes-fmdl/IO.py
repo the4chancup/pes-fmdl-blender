@@ -706,10 +706,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			raise FmdlExportError("Mesh '%s' has multiple associated materials, including '%s' and '%s'." % (name, materials[0].name, materials[1].name))
 		blenderMaterial = materials[0]
 		
-		uvLayerColor = 'UVMap'
-		uvLayerNormal = None
 		vertexFields.uvCount = 0
-		shim.ExportUVMaps(blenderMaterial, blenderMesh, name, vertexFields)
+		(uvLayerColor, uvLayerNormal) = shim.ExportUVMaps(blenderMaterial, blenderMesh, name, vertexFields)
 		
 		boneVector = [bonesByName[vertexGroup.name] for vertexGroup in blenderMeshObject.vertex_groups]
 		if len(boneVector) > 0:

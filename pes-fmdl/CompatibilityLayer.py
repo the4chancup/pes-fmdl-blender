@@ -39,7 +39,7 @@ class CompatibilityLayerBase(object):
 		pass
 
 	@classmethod
-	def ExportUVMaps(cls, blenderMaterial, blenderMesh, name, vertexFields):
+	def ExportUVMaps(cls, blenderMaterial, blenderMesh, name, vertexFields) -> (str, str):
 		pass
 
 	@classmethod
@@ -186,7 +186,7 @@ class CompatibilityLayer27(CompatibilityLayerBase):
 			yield slot.texture
 
 	@classmethod
-	def ExportUVMaps(cls, blenderMaterial, blenderMesh, name, vertexFields):
+	def ExportUVMaps(cls, blenderMaterial, blenderMesh, name, vertexFields) -> (str, str):
 		allUvMaps = []
 		colorUvMaps = []
 		normalUvMaps = []
@@ -240,6 +240,7 @@ class CompatibilityLayer27(CompatibilityLayerBase):
 		else:
 			uvLayerNormal = normalUvMaps[0]
 			vertexFields.uvCount += 1
+		return uvLayerColor, uvLayerNormal
 
 	@classmethod
 	def TriangulateMesh(cls, modifiedBlenderMesh, scene):
@@ -397,8 +398,8 @@ class CompatibilityLayer29(CompatibilityLayerBase):
 			yield slot
 
 	@classmethod
-	def ExportUVMaps(cls, blenderMaterial, blenderMesh, name, vertexFields):
-		pass
+	def ExportUVMaps(cls, blenderMaterial, blenderMesh, name, vertexFields) -> (str, str):
+		return 'UVMap', None
 
 	@classmethod
 	def TriangulateMesh(cls, modifiedBlenderMesh, scene):
@@ -470,8 +471,8 @@ class CompatibilityLayer:
 		for slot in self.shim.iterateTextureSlots(blenderMaterial):
 			yield slot
 
-	def ExportUVMaps(self, blenderMaterial, blenderMesh, name, vertexFields):
-		self.shim.ExportUVMaps(blenderMaterial, blenderMesh, name, vertexFields)
+	def ExportUVMaps(self, blenderMaterial, blenderMesh, name, vertexFields) -> (str, str):
+		return self.shim.ExportUVMaps(blenderMaterial, blenderMesh, name, vertexFields)
 
 	def TriangulateMesh(self, modifiedBlenderMesh, scene):
 		self.shim.TriangulateMesh(modifiedBlenderMesh, scene)

@@ -104,14 +104,11 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 				blenderImage.colorspace_settings.name = 'Non-Color'
 			
 			filename = findTexture(texture, textureSearchPath)
-			hasAlpha = True
 			if filename == None:
 				blenderImage.filepath = texture.directory + texture.filename
 			elif filename.lower().endswith('.ftex'):
 				blenderImage.filepath = filename
 				Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir)
-				# Many (all?) ftex files in PES have nonsensical alpha data.
-				hasAlpha = False
 			else:
 				blenderImage.filepath = filename
 				blenderImage.reload()
@@ -119,7 +116,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			textureName = "[%s] %s" % (textureRole, texture.filename)
 			blenderTexture = bpy.data.textures.new(textureName, type = 'IMAGE')
 			blenderTexture.image = blenderImage
-			blenderTexture.use_alpha = hasAlpha
+			blenderTexture.use_alpha = True
 			
 			if '_NRM' in textureRole:
 				blenderTexture.use_normal_map = True

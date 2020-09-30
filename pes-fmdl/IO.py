@@ -813,57 +813,55 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			raise FmdlExportError("Mesh '%s' has multiple associated materials, including '%s' and '%s'." % (name, materials[0].name, materials[1].name))
 		blenderMaterial = materials[0]
 		
-		allUvMaps = []
-		colorUvMaps = []
-		normalUvMaps = []
-		for slot in blenderMaterial.texture_slots:
-			if slot == None:
-				continue
-			uvLayerName = slot.uv_layer
-			if uvLayerName not in blenderMesh.uv_layers:
-				continue
-			if '_NRM' in slot.texture.fmdl_texture_role:
-				uvMaps = normalUvMaps
-			else:
-				uvMaps = colorUvMaps
-			if uvLayerName not in allUvMaps:
-				allUvMaps.append(uvLayerName)
-			if uvLayerName not in uvMaps:
-				uvMaps.append(uvLayerName)
-		if len(allUvMaps) == 1:
-			if len(colorUvMaps) == 0:
-				colorUvMaps.append(allUvMaps[0])
-			if len(normalUvMaps) == 0:
-				normalUvMaps.append(allUvMaps[0])
-		elif len(allUvMaps) == 2:
-			if len(colorUvMaps) == 1 and len(normalUvMaps) == 2:
-				if allUvMaps[0] == colorUvMaps[0]:
-					normalUvMaps = [allUvMaps[1]]
-				else:
-					normalUvMaps = [allUvMaps[0]]
-			elif len(colorUvMaps) == 2 and len(normalUvMaps) == 1:
-				if allUvMaps[0] == normalUvMaps[0]:
-					colorUvMaps = [allUvMaps[1]]
-				else:
-					colorUvMaps = [allUvMaps[0]]
-		
-		if len(colorUvMaps) == 0:
-			raise FmdlExportError("Mesh '%s' does not have a primary UV map set." % name)
-		if len(colorUvMaps) > 1:
-			raise FmdlExportError("Mesh '%s' has conflicting primary UV maps '%s' and '%s' set." % (name, colorUvMaps[0], colorUvMaps[1]))
-		if len(normalUvMaps) == 0:
-			raise FmdlExportError("Mesh '%s' does not have a normals UV map set." % name)
-		if len(normalUvMaps) > 1:
-			raise FmdlExportError("Mesh '%s' has conflicting normals UV maps '%s' and '%s' set." % (name, normalUvMaps[0], normalUvMaps[1]))
-		
-		uvLayerColor = colorUvMaps[0]
-		vertexFields.uvCount = 1
-		
-		if normalUvMaps[0] == uvLayerColor:
+		if len(blenderMesh.uv_layers) == 0:
+			raise FmdlExportError("Mesh '%s' does not have a UV map." % name)
+		elif len(blenderMesh.uv_layers) == 1:
+			uvLayerColor = blenderMesh.uv_layers[0].name
 			uvLayerNormal = None
+			vertexFields.uvCount = 1
 		else:
-			uvLayerNormal = normalUvMaps[0]
-			vertexFields.uvCount += 1
+			colorUvMaps = []
+			normalUvMaps = []
+			for slot in blenderMaterial.texture_slots:
+				if slot == None:
+					continue
+				uvLayerName = slot.uv_layer
+				if uvLayerName not in blenderMesh.uv_layers:
+					continue
+				if '_NRM' in slot.texture.fmdl_texture_role:
+					uvMaps = normalUvMaps
+				else:
+					uvMaps = colorUvMaps
+				if uvLayerName not in uvMaps:
+					uvMaps.append(uvLayerName)
+			
+			if len(colorUvMaps) > 1:
+				raise FmdlExportError("Mesh '%s' has ambiguous UV maps: multiple UV maps configured as primary UV map." % name)
+			if len(normalUvMaps) > 1:
+				raise FmdlExportError("Mesh '%s' has ambiguous UV maps: multiple UV maps configured as normals UV map." % name)
+			
+			if len(colorUvMaps) == 0 and 'UVMap' in blenderMesh.uv_layers and 'UVMap' not in normalUvMaps:
+				colorUvMaps.append('UVMap')
+			if len(normalUvMaps) == 0 and 'normal_map' in blenderMesh.uv_layers and 'normal_map' not in colorUvMaps:
+				normalUvMaps.append('normal_map')
+			if len(colorUvMaps) == 0 and len(normalUvMaps) == 1 and len(blenderMesh.uv_layers) == 2:
+				for layer in blenderMesh.uv_layers:
+					if layer.name != normalUvMaps[0]:
+						colorUvMaps.append(layer.name)
+						break
+			
+			if len(colorUvMaps) == 0:
+				raise FmdlExportError("Mesh '%s' has ambiguous UV maps: found %s UV maps, but no primary UV map is configured." % (name, len(blenderMesh.uv_layers)))
+			if len(normalUvMaps) == 0:
+				raise FmdlExportError("Mesh '%s' has ambiguous UV maps: found %s UV maps, but no normals UV map is configured." % (name, len(blenderMesh.uv_layers)))
+			
+			uvLayerColor = colorUvMaps[0]
+			if colorUvMaps[0] == normalUvMaps[0]:
+				uvLayerNormal = None
+				vertexFields.uvCount = 1
+			else:
+				uvLayerNormal = normalUvMaps[0]
+				vertexFields.uvCount = 2
 		
 		boneVector = [bonesByName[vertexGroup.name] for vertexGroup in blenderMeshObject.vertex_groups]
 		if len(boneVector) > 0:

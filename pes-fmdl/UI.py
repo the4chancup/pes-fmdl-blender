@@ -40,6 +40,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
 	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
+	load_textures = bpy.props.BoolProperty(name = "Load textures", default = True)
 	
 	import_label = "PES FMDL (.fmdl)"
 	
@@ -50,6 +51,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 		self.extensions_enabled = context.scene.fmdl_import_extensions_enabled
 		self.loop_preservation = context.scene.fmdl_import_loop_preservation
 		self.mesh_splitting = context.scene.fmdl_import_mesh_splitting
+		self.load_textures = context.scene.fmdl_import_load_textures
 		return bpy_extras.io_utils.ImportHelper.invoke(self, context, event)
 	
 	def execute(self, context):
@@ -59,6 +61,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 		importSettings.enableExtensions = self.extensions_enabled
 		importSettings.enableVertexLoopPreservation = self.loop_preservation
 		importSettings.enableMeshSplitting = self.mesh_splitting
+		importSettings.enableLoadTextures = self.load_textures
 		
 		fmdlFile = FmdlFile.FmdlFile()
 		fmdlFile.readFile(filename)
@@ -163,12 +166,17 @@ class FMDL_Scene_Panel_FMDL_Import_Settings(bpy.types.Menu):
 	
 	def draw(self, context):
 		self.layout.prop(context.scene, 'fmdl_import_extensions_enabled')
+		
 		row = self.layout.row()
 		row.prop(context.scene, 'fmdl_import_loop_preservation')
 		row.enabled = context.scene.fmdl_import_extensions_enabled
+		
 		row = self.layout.row()
 		row.prop(context.scene, 'fmdl_import_mesh_splitting')
 		row.enabled = context.scene.fmdl_import_extensions_enabled
+		
+		row = self.layout.row()
+		row.prop(context.scene, 'fmdl_import_load_textures')
 
 class FMDL_Scene_Panel_FMDL_Compose(bpy.types.Operator):
 	"""Enable separate exporting of the active object"""
@@ -783,6 +791,7 @@ def register():
 	bpy.types.Scene.fmdl_import_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
 	bpy.types.Scene.fmdl_import_loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	bpy.types.Scene.fmdl_import_mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
+	bpy.types.Scene.fmdl_import_load_textures = bpy.props.BoolProperty(name = "Load textures", default = True)
 	bpy.types.Bone.fmdl_bone_in_active_mesh = bpy.props.BoolProperty(name = "Enabled",
 		get = FMDL_Mesh_BoneGroup_Bone_get_enabled,
 		set = FMDL_Mesh_BoneGroup_Bone_set_enabled,

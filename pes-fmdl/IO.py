@@ -23,6 +23,7 @@ class ImportSettings:
 		self.enableExtensions = True
 		self.enableVertexLoopPreservation = True
 		self.enableMeshSplitting = True
+		self.enableLoadTextures = True
 
 class ExportSettings:
 	def __init__(self):
@@ -88,7 +89,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		return None
 	
-	def addTexture(blenderMaterial, textureRole, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath):
+	def addTexture(blenderMaterial, textureRole, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath, loadTextures):
 		identifier = (textureRole, texture)
 		if identifier in textureIDs:
 			blenderTexture = bpy.data.textures[textureIDs[identifier]]
@@ -103,15 +104,16 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			else:
 				blenderImage.colorspace_settings.name = 'Non-Color'
 			
-			filename = findTexture(texture, textureSearchPath)
-			if filename == None:
-				blenderImage.filepath = texture.directory + texture.filename
-			elif filename.lower().endswith('.ftex'):
-				blenderImage.filepath = filename
-				Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir)
-			else:
-				blenderImage.filepath = filename
-				blenderImage.reload()
+			if loadTextures:
+				filename = findTexture(texture, textureSearchPath)
+				if filename == None:
+					blenderImage.filepath = texture.directory + texture.filename
+				elif filename.lower().endswith('.ftex'):
+					blenderImage.filepath = filename
+					Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir)
+				else:
+					blenderImage.filepath = filename
+					blenderImage.reload()
 			
 			textureName = "[%s] %s" % (textureRole, texture.filename)
 			blenderTexture = bpy.data.textures.new(textureName, type = 'IMAGE')
@@ -149,7 +151,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 					return True
 		return False
 	
-	def importMaterials(fmdl, textureSearchPath):
+	def importMaterials(fmdl, textureSearchPath, loadTextures):
 		materialIDs = {}
 		textureIDs = {}
 		
@@ -174,7 +176,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			blenderMaterial.emit = 1.0
 			
 			for (role, texture) in materialInstance.textures:
-				addTexture(blenderMaterial, role, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath)
+				addTexture(blenderMaterial, role, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath, loadTextures)
 		
 		return materialIDs
 	
@@ -271,13 +273,16 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 				continue
 			if slot.uv_layer != uvMapName:
 				continue
-			if slot.texture is None:
-				continue
-			if slot.texture.type != 'IMAGE':
-				continue
-			if slot.texture.image is None:
-				continue
-			options.append((slot.texture.image, slot.texture.fmdl_texture_role))
+			if (
+				    slot.texture is not None
+				and slot.texture.type == 'IMAGE'
+				and slot.texture.image is not None
+				and slot.texture.image.size[0] != 0
+			):
+				image = slot.texture.image
+			else:
+				image = None
+			options.append((image, slot.texture.fmdl_texture_role))
 		
 		for (image, role) in options:
 			if role.lower().startswith(rolePrefix.lower()):
@@ -490,7 +495,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	]:
 		if os.path.isdir(directory):
 			textureSearchPath.append(directory)
-	materialIDs = importMaterials(fmdl, textureSearchPath)
+	materialIDs = importMaterials(fmdl, textureSearchPath, importSettings.enableLoadTextures)
 	
 	if len(fmdl.bones) > 0:
 		(armatureObjectID, boneIDs) = importSkeleton(context, fmdl)

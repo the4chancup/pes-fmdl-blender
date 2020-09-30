@@ -47,6 +47,8 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	def findTexture(texture, textureSearchPath):
 		textureFilename = texture.directory.replace('\\', '/').rstrip('/') + '/' + texture.filename.replace('\\', '/').lstrip('/')
 		textureFilenameComponents = tuple(filter(None, textureFilename.split('/')))
+		if len(textureFilenameComponents) == 0:
+			return None
 		filename = textureFilenameComponents[-1]
 		directory = textureFilenameComponents[:-1]
 		directorySuffixes = [directory[i:] for i in range(len(directory) + 1)]

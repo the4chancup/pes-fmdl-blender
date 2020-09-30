@@ -264,6 +264,28 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			vertexGroupIDs[bone] = blenderVertexGroup.name
 		return vertexGroupIDs
 	
+	def findUvMapImage(blenderMaterial, uvMapName, rolePrefix):
+		options = []
+		for slot in blenderMaterial.texture_slots:
+			if slot is None:
+				continue
+			if slot.uv_layer != uvMapName:
+				continue
+			if slot.texture is None:
+				continue
+			if slot.texture.type != 'IMAGE':
+				continue
+			if slot.texture.image is None:
+				continue
+			options.append((slot.texture.image, slot.texture.fmdl_texture_role))
+		
+		for (image, role) in options:
+			if role.lower().startswith(rolePrefix.lower()):
+				return image
+		if len(options) > 0:
+			return options[0][0]
+		return None
+	
 	def importMesh(mesh, name, fmdl, materialIDs, armatureObjectID, boneIDs):
 		blenderMesh = bpy.data.meshes.new(name)
 		
@@ -295,6 +317,8 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		blenderMesh.update(calc_edges = True)
 		
+		blenderMaterial = bpy.data.materials[materialIDs[mesh.materialInstance]]
+		
 		if mesh.vertexFields.hasNormal:
 			def normalize(vector):
 				(x, y, z) = vector
@@ -316,12 +340,8 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			colorLayer.active_render = True
 		
 		if mesh.vertexFields.uvCount >= 1:
-			if 'uv_textures' in dir(blenderMesh):
-				uvTexture = blenderMesh.uv_textures.new(name = UV_MAP_COLOR)
-				uvLayer = blenderMesh.uv_layers[uvTexture.name]
-			else:
-				uvLayer = blenderMesh.uv_layers.new(name = UV_MAP_COLOR, do_init = False)
-				uvTexture = uvLayer
+			uvTexture = blenderMesh.uv_textures.new(name = UV_MAP_COLOR)
+			uvLayer = blenderMesh.uv_layers[uvTexture.name]
 			
 			uvLayer.data.foreach_set("uv", tuple(itertools.chain.from_iterable([
 				(vertex.uv[0].u, 1.0 - vertex.uv[0].v) for vertex in loopVertices
@@ -329,23 +349,29 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			uvTexture.active = True
 			uvTexture.active_clone = True
 			uvTexture.active_render = True
+			
+			image = findUvMapImage(blenderMaterial, UV_MAP_COLOR, 'Base_Tex_')
+			if image is not None:
+				for i in range(len(uvTexture.data)):
+					uvTexture.data[i].image = image
 		
 		if mesh.vertexFields.uvCount >= 2 and 0 not in mesh.vertexFields.uvEqualities[1]:
-			if 'uv_textures' in dir(blenderMesh):
-				uvTexture = blenderMesh.uv_textures.new(name = UV_MAP_NORMALS)
-				uvLayer = blenderMesh.uv_layers[uvTexture.name]
-			else:
-				uvLayer = blenderMesh.uv_layers.new(name = UV_MAP_NORMALS, do_init = False)
-				uvTexture = uvLayer
+			uvTexture = blenderMesh.uv_textures.new(name = UV_MAP_NORMALS)
+			uvLayer = blenderMesh.uv_layers[uvTexture.name]
 			
 			uvLayer.data.foreach_set("uv", tuple(itertools.chain.from_iterable([
 				(vertex.uv[1].u, 1.0 - vertex.uv[1].v) for vertex in loopVertices
 			])))
+			
+			image = findUvMapImage(blenderMaterial, UV_MAP_NORMALS, 'NormalMap_Tex_')
+			if image is not None:
+				for i in range(len(uvTexture.data)):
+					uvTexture.data[i].image = image
 		
 		if mesh.vertexFields.uvCount >= 3:
 			raise UnsupportedFmdl("No support for fmdl files with more than 2 UV maps")
 		
-		blenderMesh.materials.append(bpy.data.materials[materialIDs[mesh.materialInstance]])
+		blenderMesh.materials.append(blenderMaterial)
 		
 		blenderMesh.fmdl_alpha_enum = mesh.alphaEnum
 		blenderMesh.fmdl_shadow_enum = mesh.shadowEnum

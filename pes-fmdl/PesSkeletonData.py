@@ -593,16 +593,16 @@ skeletonBones['PES2019']['face'] = skeletonBones['PES2018']['face'][:]
 skeletonBones['PES2019']['hand_l'] = skeletonBones['PES2018']['hand_l'][:]
 skeletonBones['PES2019']['hand_r'] = skeletonBones['PES2018']['hand_r'][:]
 skeletonBones['PES2019']['body'] += [
-	'dsk_upperarm_skin_t_l'
-	'dsk_upperarm_skin_t_r'
-	'dsk_upperarm_skin_l'
-	'dsk_upperarm_skin_r'
-	'dsk_hip_l'
-	'dsk_hip_r'
-	'dsk_thigh_l'
-	'dsk_thigh_r'
-	'dsk_leg_l'
-	'dsk_leg_r'
-	'dsk_pants_l'
-	'dsk_pants_r'
+	'dsk_upperarm_skin_t_l',
+	'dsk_upperarm_skin_t_r',
+	'dsk_upperarm_skin_l',
+	'dsk_upperarm_skin_r',
+	'dsk_hip_l',
+	'dsk_hip_r',
+	'dsk_thigh_l',
+	'dsk_thigh_r',
+	'dsk_leg_l',
+	'dsk_leg_r',
+	'dsk_pants_l',
+	'dsk_pants_r',
 ]

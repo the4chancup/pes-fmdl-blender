@@ -305,7 +305,11 @@ def blenderImageLoadFtex(blenderImage, tempDir):
 	else:
 		baseName = originalFilename[pos + 1:]
 	
-	(ddsFileDescriptor, ddsFile) = tempfile.mkstemp(suffix = '.dds', prefix = baseName + '-', dir = tempDir)
+	try:
+		# tempDir is not always accessible
+		(ddsFileDescriptor, ddsFile) = tempfile.mkstemp(suffix = '.dds', prefix = baseName + '-', dir = tempDir)
+	except:
+		return False
 	os.close(ddsFileDescriptor)
 	if not ftexToDds(originalFilename, ddsFile):
 		os.remove(ddsFile)

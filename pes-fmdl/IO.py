@@ -1058,7 +1058,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			blenderMeshObjects = []
 			blenderArmatureObjects = []
 			for object in context.scene.objects:
-				if object.type == 'MESH':
+				if object.type == 'MESH' and len(object.data.polygons) > 0:
 					blenderMeshObjects.append(object)
 					for modifier in object.modifiers:
 						if modifier.type == 'ARMATURE':
@@ -1078,13 +1078,13 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			blenderMeshObjects = []
 			
 			def findMeshObjects(blenderObject, blenderMeshObjects):
-				if blenderObject.type == 'MESH':
+				if blenderObject.type == 'MESH' and len(blenderObject.data.polygons) > 0:
 					blenderMeshObjects.append(blenderObject)
 				for child in blenderObject.children:
 					findMeshObjects(child, blenderMeshObjects)
 			findMeshObjects(blenderRootObject, blenderMeshObjects)
 			
-			if blenderRootObject.type == 'MESH':
+			if blenderRootObject.type == 'MESH' and len(blenderRootObject.data.polygons) > 0:
 				blenderRootObject = blenderRootObject.parent
 		
 		return (blenderMeshObjects, blenderRootObject)

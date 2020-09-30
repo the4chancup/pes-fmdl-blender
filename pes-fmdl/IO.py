@@ -630,7 +630,11 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			modifiedBlenderMesh = newBlenderMesh
 		
 		modifiedBlenderMesh.use_auto_smooth = True
-		modifiedBlenderMesh.calc_tangents(uvLayerColor)
+		if uvLayerNormal is None:
+			uvLayerTangent = uvLayerColor
+		else:
+			uvLayerTangent = uvLayerNormal
+		modifiedBlenderMesh.calc_tangents(uvLayerTangent)
 		
 		
 		

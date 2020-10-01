@@ -2,7 +2,7 @@ import bpy
 import bpy.props
 import bpy_extras.io_utils
 
-from . import FmdlFile, Ftex, IO
+from . import FmdlFile, Ftex, IO, PesSkeletonData
 
 
 
@@ -296,6 +296,282 @@ class FMDL_Scene_Panel(bpy.types.Panel):
 			if object.fmdl_filename == "":
 				subrow.enabled = False
 			row.menu(FMDL_Scene_Panel_FMDL_Export_Settings.__name__, icon = 'DOWNARROW_HLT', text = "")
+
+
+
+def pesBoneList(skeletonType):
+	parts = skeletonType.split('_', 1)
+	if len(parts) != 2:
+		return None
+	pesVersion = parts[0]
+	bodyPart = parts[1]
+	if pesVersion not in PesSkeletonData.skeletonBones:
+		return None
+	if bodyPart not in PesSkeletonData.skeletonBones[pesVersion]:
+		return None
+	return PesSkeletonData.skeletonBones[pesVersion][bodyPart]
+
+def armatureIsPesSkeleton(armature, skeletonType):
+	boneNames = pesBoneList(skeletonType)
+	if boneNames is None:
+		return False
+	boneNames = set(boneNames)
+	
+	if armature.is_editmode:
+		blenderBoneNames = [bone.name for bone in armature.edit_bones]
+	else:
+		blenderBoneNames = [bone.name for bone in armature.bones]
+	for boneName in blenderBoneNames:
+		if boneName not in boneNames:
+			return False
+	return True
+
+def FMDL_Scene_Skeleton_update_type(scene, context):
+	newType = scene.fmdl_skeleton_type
+	for object in scene.objects:
+		if object.type == 'ARMATURE':
+			if object.fmdl_skeleton_replace_type != newType:
+				object.fmdl_skeleton_replace = armatureIsPesSkeleton(object.data, newType)
+				object.fmdl_skeleton_replace_type = newType
+
+def FMDL_Scene_Skeleton_get_replace(armatureObject):
+	skeletonType = bpy.context.scene.fmdl_skeleton_type
+	if (
+		   'fmdl_skeleton_replace' not in armatureObject
+		or 'fmdl_skeleton_replace_type' not in armatureObject
+		or armatureObject.fmdl_skeleton_replace_type != skeletonType
+	):
+		return armatureIsPesSkeleton(armatureObject.data, bpy.context.scene.fmdl_skeleton_type)
+	return armatureObject.fmdl_skeleton_replace
+
+def FMDL_Scene_Skeleton_set_replace(armatureObject, enabled):
+	armatureObject.fmdl_skeleton_replace_type = bpy.context.scene.fmdl_skeleton_type
+	armatureObject.fmdl_skeleton_replace = enabled
+
+class FMDL_Scene_Skeleton_List(bpy.types.UIList):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+		row = layout.row(align = True)
+		row.prop(item, 'fmdl_skeleton_replace_effective', text = '')
+		row.label(text = FMDL_Scene_Skeleton_List.objectName(item))
+	
+	def filter_items(self, context, data, propname):
+		filterList = []
+		names = {}
+		
+		for blenderObject in data.objects:
+			if blenderObject.type == 'ARMATURE':
+				filterList.append(self.bitflag_filter_item)
+				names[blenderObject] = FMDL_Scene_Skeleton_List.objectName(blenderObject)
+			else:
+				filterList.append(0)
+		
+		indices = {}
+		for name in sorted(list(names.values())):
+			indices[name] = len(indices)
+		
+		sortList = []
+		for blenderObject in data.objects:
+			if blenderObject in names:
+				sortList.append(indices[names[blenderObject]])
+			else:
+				sortList.append(-1)
+		
+		return (filterList, sortList)
+	
+	def objectName(blenderObject):
+		if blenderObject.parent is None:
+			return blenderObject.name
+		else:
+			return "%s :: %s" % (FMDL_Scene_Skeleton_List.objectName(blenderObject.parent), blenderObject.name)
+
+def addBone(blenderArmature, bone, boneIDs, bonesByName):
+	if bone in boneIDs:
+		return boneIDs[bone]
+	
+	useConnect = False
+	if bone.name in PesSkeletonData.bones:
+		pesBone = PesSkeletonData.bones[bone.name]
+		(headX, headY, headZ) = pesBone.startPosition
+		(tailX, tailY, tailZ) = pesBone.endPosition
+		head = (headX, -headZ, headY)
+		tail = (tailX, -tailZ, tailY)
+		parentBoneName = pesBone.renderParent
+		while parentBoneName is not None and parentBoneName not in bonesByName:
+			parentBoneName = PesSkeletonData.bones[parentBoneName].renderParent
+		if parentBoneName is None:
+			parentBone = None
+		else:
+			parentBone = bonesByName[parentBoneName]
+			parentDistanceSquared = sum(((PesSkeletonData.bones[parentBoneName].endPosition[i] - pesBone.startPosition[i]) ** 2 for i in range(3)))
+			if parentBoneName == pesBone.renderParent and parentDistanceSquared < 0.0000000001:
+				useConnect = True
+	else:
+		tail = (bone.globalPosition.x, -bone.globalPosition.z, bone.globalPosition.y)
+		head = (bone.localPosition.x, -bone.localPosition.z, bone.localPosition.y)
+		parentBone = bone.parent
+	
+	if parentBone != None:
+		parentBoneID = addBone(blenderArmature, parentBone, boneIDs, bonesByName)
+	else:
+		parentBoneID = None
+	
+	if sum(((tail[i] - head[i]) ** 2 for i in range(3))) < 0.0000000001:
+		tail = (head[0], head[1], head[2] - 0.00001)
+	
+	blenderEditBone = blenderArmature.edit_bones.new(bone.name)
+	boneID = blenderEditBone.name
+	boneIDs[bone] = boneID
+	
+	blenderEditBone.head = head
+	blenderEditBone.tail = tail
+	blenderEditBone.hide = False
+	if parentBoneID != None:
+		blenderEditBone.parent = blenderArmature.edit_bones[parentBoneID]
+		blenderEditBone.use_connect = useConnect
+	
+	return boneID
+
+def createPesBone(blenderArmature, boneName, boneNames):
+	if boneName not in PesSkeletonData.bones:
+		return
+	if boneName in blenderArmature.edit_bones:
+		return
+	
+	pesBone = PesSkeletonData.bones[boneName]
+	parentBoneName = pesBone.renderParent
+	while parentBoneName is not None and parentBoneName not in boneNames:
+		parentBoneName = PesSkeletonData.bones[parentBoneName].renderParent
+	if parentBoneName is not None:
+		parentDistanceSquared = sum(((PesSkeletonData.bones[parentBoneName].endPosition[i] - pesBone.startPosition[i]) ** 2 for i in range(3)))
+		useConnect = (parentBoneName == pesBone.renderParent and parentDistanceSquared < 0.0000000001)
+		createPesBone(blenderArmature, parentBoneName, boneNames)
+	
+	(headX, headY, headZ) = pesBone.startPosition
+	(tailX, tailY, tailZ) = pesBone.endPosition
+	head = (headX, -headZ, headY)
+	tail = (tailX, -tailZ, tailY)
+	if sum(((tail[i] - head[i]) ** 2 for i in range(3))) < 0.0000000001:
+		tail = (head[0], head[1], head[2] - 0.00001)
+	
+	blenderEditBone = blenderArmature.edit_bones.new(boneName)
+	blenderEditBone.head = head
+	blenderEditBone.tail = tail
+	blenderEditBone.hide = False
+	if parentBoneName is not None:
+		blenderEditBone.parent = blenderArmature.edit_bones[parentBoneName]
+		blenderEditBone.use_connect = useConnect
+
+def createPesSkeleton(context, skeletonType):
+	boneNames = pesBoneList(skeletonType)
+	
+	armatureName = "Skeleton"
+	for enumItem in bpy.types.Scene.bl_rna.properties['fmdl_skeleton_type'].enum_items:
+		if enumItem.identifier == skeletonType:
+			armatureName = enumItem.name
+			break
+	blenderArmature = bpy.data.armatures.new(armatureName)
+	blenderArmature.show_names = True
+	
+	blenderArmatureObject = bpy.data.objects.new(armatureName, blenderArmature)
+	armatureObjectID = blenderArmatureObject.name
+	
+	context.scene.objects.link(blenderArmatureObject)
+	context.scene.objects.active = blenderArmatureObject
+	bpy.ops.object.mode_set(context.copy(), mode = 'EDIT')
+	
+	boneIDs = {}
+	for boneName in boneNames:
+		createPesBone(blenderArmature, boneName, boneNames)
+	
+	bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
+	context.scene.update()
+	return (armatureObjectID, armatureName)
+
+def replaceArmatures(context, armatureObjectID, preferredName):
+	remapList = []
+	for object in bpy.data.objects:
+		if (
+			    object.type == 'ARMATURE'
+			and object.fmdl_skeleton_replace_effective
+			and object.name != armatureObjectID
+		):
+			remapList.append(object.name)
+	
+	parentObjectID = None
+	if len(remapList) == 1:
+		preferredName = remapList[0]
+		parent = bpy.data.objects[remapList[0]].parent
+		if parent is not None:
+			parentObjectID = parent.name
+	
+	for objectID in remapList:
+		oldArmatureObject = bpy.data.objects[objectID]
+		oldArmature = oldArmatureObject.data
+		
+		oldArmature.user_remap(bpy.data.objects[armatureObjectID].data)
+		bpy.data.armatures.remove(oldArmature)
+		
+		context.scene.objects.unlink(oldArmatureObject)
+		oldArmatureObject.user_remap(bpy.data.objects[armatureObjectID])
+		bpy.data.objects.remove(oldArmatureObject)
+	if parentObjectID is not None:
+		bpy.data.objects[armatureObjectID].parent = bpy.data.objects[parentObjectID]
+	bpy.data.objects[armatureObjectID].name = preferredName
+	context.scene.update()
+
+class FMDL_Scene_Skeleton_Create(bpy.types.Operator):
+	"""Create PES skeleton"""
+	bl_idname = "fmdl.skeleton_create"
+	bl_label = "Create Skeleton"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context):
+		return context.mode == 'OBJECT'
+	
+	def execute(self, context):
+		createPesSkeleton(context, context.scene.fmdl_skeleton_type)
+		return {'FINISHED'}
+
+class FMDL_Scene_Skeleton_CreateReplace(bpy.types.Operator):
+	"""Create PES skeleton and replace existing"""
+	bl_idname = "fmdl.skeleton_create_replace"
+	bl_label = "Create and replace existing:"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context):
+		return context.mode == 'OBJECT'
+	
+	def execute(self, context):
+		(newArmatureObjectID, preferredName) = createPesSkeleton(context, context.scene.fmdl_skeleton_type)
+		replaceArmatures(context, newArmatureObjectID, preferredName)
+		return {'FINISHED'}
+
+class FMDL_Scene_Skeleton_Panel(bpy.types.Panel):
+	bl_label = "FMDL Skeleton"
+	bl_space_type = "PROPERTIES"
+	bl_region_type = "WINDOW"
+	bl_context = "scene"
+	
+	@classmethod
+	def poll(cls, context):
+		return context.scene != None
+	
+	def draw(self, context):
+		scene = context.scene
+		self.layout.prop(scene, 'fmdl_skeleton_type', text = "Skeleton Type")
+		self.layout.operator(FMDL_Scene_Skeleton_Create.bl_idname)
+		self.layout.operator(FMDL_Scene_Skeleton_CreateReplace.bl_idname)
+		self.layout.template_list(
+			FMDL_Scene_Skeleton_List.__name__,
+			"FMDL_Scene_Skeleton",
+			scene,
+			"objects",
+			scene,
+			"fmdl_skeleton_replace_active",
+			rows = 5
+		)
 
 
 
@@ -761,6 +1037,11 @@ classes = [
 	FMDL_Scene_Panel_FMDL_Select_Filename,
 	FMDL_Scene_Panel,
 	
+	FMDL_Scene_Skeleton_List,
+	FMDL_Scene_Skeleton_Create,
+	FMDL_Scene_Skeleton_CreateReplace,
+	FMDL_Scene_Skeleton_Panel,
+	
 	FMDL_Mesh_BoneGroup_List,
 	FMDL_Mesh_BoneGroup_RemoveUnused,
 	FMDL_Mesh_BoneGroup_Refresh,
@@ -783,6 +1064,15 @@ classes = [
 
 
 def register():
+	skeletonTypes = []
+	for pesVersion in PesSkeletonData.skeletonBones:
+		for skeletonType in PesSkeletonData.skeletonBones[pesVersion]:
+			skeletonTypes.append(('%s_%s' % (pesVersion, skeletonType), '%s %s' % (pesVersion, skeletonType), '%s %s' % (pesVersion, skeletonType)))
+	skeletonTypes.reverse()
+	defaultPesVersion = list(PesSkeletonData.skeletonBones.keys())[-1]
+	defaultType = list(PesSkeletonData.skeletonBones[defaultPesVersion].keys())[0]
+	defaultSkeletonType = '%s_%s' % (defaultPesVersion, defaultType)
+	
 	bpy.types.Object.fmdl_file = bpy.props.BoolProperty(name = "Is FMDL file", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_filename = bpy.props.StringProperty(name = "FMDL filename", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_export_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
@@ -792,6 +1082,20 @@ def register():
 	bpy.types.Scene.fmdl_import_loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	bpy.types.Scene.fmdl_import_mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	bpy.types.Scene.fmdl_import_load_textures = bpy.props.BoolProperty(name = "Load textures", default = True)
+	bpy.types.Scene.fmdl_skeleton_type = bpy.props.EnumProperty(name = "Skeleton type",
+		items = skeletonTypes,
+		default = defaultSkeletonType,
+		update = FMDL_Scene_Skeleton_update_type,
+		options = {'SKIP_SAVE'}
+	)
+	bpy.types.Object.fmdl_skeleton_replace = bpy.props.BoolProperty(name = "Replace skeleton", default = False, options = {'SKIP_SAVE'})
+	bpy.types.Object.fmdl_skeleton_replace_type = bpy.props.EnumProperty(name = "Skeleton replacement target", items = skeletonTypes, options = {'SKIP_SAVE'})
+	bpy.types.Object.fmdl_skeleton_replace_effective = bpy.props.BoolProperty(name = "Replace skeleton",
+		get = FMDL_Scene_Skeleton_get_replace,
+		set = FMDL_Scene_Skeleton_set_replace,
+		options = {'SKIP_SAVE'}
+	)
+	bpy.types.Scene.fmdl_skeleton_replace_active = bpy.props.IntProperty(name = "FMDL_Scene_Skeleton_List index", default = -1, options = {'SKIP_SAVE'})
 	bpy.types.Bone.fmdl_bone_in_active_mesh = bpy.props.BoolProperty(name = "Enabled",
 		get = FMDL_Mesh_BoneGroup_Bone_get_enabled,
 		set = FMDL_Mesh_BoneGroup_Bone_set_enabled,

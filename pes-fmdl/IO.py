@@ -33,14 +33,6 @@ class ExportSettings:
 
 
 
-def setActiveObject(context, blenderObject):
-	if 'view_layer' in dir(context):
-		context.view_layer.objects.active = blenderObject
-	else:
-		context.scene.objects.active = blenderObject
-
-
-
 def importFmdl(context, fmdl, filename, importSettings = None):
 	UV_MAP_COLOR = 'UVMap'
 	UV_MAP_NORMALS = 'normal_map'
@@ -235,7 +227,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		armatureObjectID = blenderArmatureObject.name
 		
 		context.scene.objects.link(blenderArmatureObject)
-		setActiveObject(context, blenderArmatureObject)
+		context.scene.objects.active = blenderArmatureObject
 		
 		bpy.ops.object.mode_set(context.copy(), mode = 'EDIT')
 		
@@ -511,7 +503,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	if context.mode != 'OBJECT':
 		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
 	if activeObjectID != None:
-		setActiveObject(context, bpy.data.objects[activeObjectID])
+		blenderArmatureObject = bpy.data.objects[activeObjectID]
 	
 	return bpy.data.objects[rootMeshGroupID]
 

@@ -41,6 +41,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	load_textures = bpy.props.BoolProperty(name = "Load textures", default = True)
+	import_all_bounding_boxes = bpy.props.BoolProperty(name = "Import all bounding boxes", default = False)
 	
 	import_label = "PES FMDL (.fmdl)"
 	
@@ -52,6 +53,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 		self.loop_preservation = context.scene.fmdl_import_loop_preservation
 		self.mesh_splitting = context.scene.fmdl_import_mesh_splitting
 		self.load_textures = context.scene.fmdl_import_load_textures
+		self.import_all_bounding_boxes = context.scene.fmdl_import_all_bounding_boxes
 		return bpy_extras.io_utils.ImportHelper.invoke(self, context, event)
 	
 	def execute(self, context):
@@ -62,6 +64,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 		importSettings.enableVertexLoopPreservation = self.loop_preservation
 		importSettings.enableMeshSplitting = self.mesh_splitting
 		importSettings.enableLoadTextures = self.load_textures
+		importSettings.enableImportAllBoundingBoxes = self.import_all_bounding_boxes
 		
 		fmdlFile = FmdlFile.FmdlFile()
 		fmdlFile.readFile(filename)
@@ -177,6 +180,9 @@ class FMDL_Scene_Panel_FMDL_Import_Settings(bpy.types.Menu):
 		
 		row = self.layout.row()
 		row.prop(context.scene, 'fmdl_import_load_textures')
+		
+		row = self.layout.row()
+		row.prop(context.scene, 'fmdl_import_all_bounding_boxes')
 
 class FMDL_Scene_Panel_FMDL_Compose(bpy.types.Operator):
 	"""Enable separate exporting of the active object"""
@@ -572,6 +578,82 @@ class FMDL_Scene_Skeleton_Panel(bpy.types.Panel):
 			"fmdl_skeleton_replace_active",
 			rows = 5
 		)
+
+
+
+class FMDL_Object_BoundingBox_Create(bpy.types.Operator):
+	"""Create custom bounding box"""
+	bl_idname = "fmdl.boundingbox_create"
+	bl_label = "Create custom bounding box"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context):
+		if not (
+			    context.mode == 'OBJECT'
+			and context.object is not None
+			and context.object.type == 'MESH'
+		):
+			return False
+		for child in context.object.children:
+			if child.type == 'LATTICE':
+				return False
+		return True
+	
+	def execute(self, context):
+		IO.createFittingBoundingBox(context, context.object)
+		return {'FINISHED'}
+
+class FMDL_Object_BoundingBox_Remove(bpy.types.Operator):
+	"""Remove custom bounding box"""
+	bl_idname = "fmdl.boundingbox_remove"
+	bl_label = "Remove custom bounding box"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context):
+		if not (
+			    context.mode == 'OBJECT'
+			and context.object is not None
+			and context.object.type == 'MESH'
+		):
+			return False
+		for child in context.object.children:
+			if child.type == 'LATTICE':
+				return True
+		return False
+	
+	def execute(self, context):
+		removeList = []
+		for child in context.object.children:
+			if child.type == 'LATTICE':
+				removeList.append(child.name)
+		for objectID in removeList:
+			latticeID = bpy.data.objects[objectID].data.name
+			while len(bpy.data.objects[objectID].users_scene) > 0:
+				bpy.data.objects[objectID].users_scene[0].objects.unlink(bpy.data.objects[objectID])
+			if bpy.data.objects[objectID].users == 0:
+				bpy.data.objects.remove(bpy.data.objects[objectID])
+			if bpy.data.lattices[latticeID].users == 0:
+				bpy.data.lattices.remove(bpy.data.lattices[latticeID])
+		return {'FINISHED'}
+
+class FMDL_Object_BoundingBox_Panel(bpy.types.Panel):
+	bl_label = "FMDL Bounding Box"
+	bl_space_type = "PROPERTIES"
+	bl_region_type = "WINDOW"
+	bl_context = "object"
+	
+	@classmethod
+	def poll(cls, context):
+		return (
+			    context.object is not None
+			and context.object.type == 'MESH'
+		)
+	
+	def draw(self, context):
+		self.layout.operator(FMDL_Object_BoundingBox_Create.bl_idname)
+		self.layout.operator(FMDL_Object_BoundingBox_Remove.bl_idname)
 
 
 
@@ -1042,6 +1124,10 @@ classes = [
 	FMDL_Scene_Skeleton_CreateReplace,
 	FMDL_Scene_Skeleton_Panel,
 	
+	FMDL_Object_BoundingBox_Create,
+	FMDL_Object_BoundingBox_Remove,
+	FMDL_Object_BoundingBox_Panel,
+	
 	FMDL_Mesh_BoneGroup_List,
 	FMDL_Mesh_BoneGroup_RemoveUnused,
 	FMDL_Mesh_BoneGroup_Refresh,
@@ -1082,6 +1168,7 @@ def register():
 	bpy.types.Scene.fmdl_import_loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	bpy.types.Scene.fmdl_import_mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	bpy.types.Scene.fmdl_import_load_textures = bpy.props.BoolProperty(name = "Load textures", default = True)
+	bpy.types.Scene.fmdl_import_all_bounding_boxes = bpy.props.BoolProperty(name = "Import all bounding boxes", default = False)
 	bpy.types.Scene.fmdl_skeleton_type = bpy.props.EnumProperty(name = "Skeleton type",
 		items = skeletonTypes,
 		default = defaultSkeletonType,

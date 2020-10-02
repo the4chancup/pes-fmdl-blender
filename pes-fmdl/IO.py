@@ -24,6 +24,7 @@ class ImportSettings:
 		self.enableVertexLoopPreservation = True
 		self.enableMeshSplitting = True
 		self.enableLoadTextures = True
+		self.enableImportAllBoundingBoxes = False
 
 class ExportSettings:
 	def __init__(self):
@@ -32,6 +33,45 @@ class ExportSettings:
 		self.enableMeshSplitting = True
 
 
+
+def createBoundingBox(context, meshObject, min, max):
+	name = "Bounding box for %s" % meshObject.data.name
+	objectID = meshObject.name
+	
+	blenderLattice = bpy.data.lattices.new(name)
+	blenderLattice.points_u = 2
+	blenderLattice.points_v = 2
+	blenderLattice.points_w = 2
+	# The default constructed (2,2,2)-lattice has a size of 1x1x1 centered around the origin.
+	# Scale and translate this to the desired coordinates using a transformation matrix.
+	# This translation matrix has a scaling factors on the diagonal, and translation offsets
+	# on the bottom row, applied _after_ scaling.
+	matrix = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1]]
+	for i in range(3):
+		size = max[i] - min[i]
+		if size < 0.000001:
+			size = 0.000001
+		matrix[i][i] = size
+		basePosition = -size / 2
+		matrix[3][i] = min[i] - basePosition
+	blenderLattice.transform(matrix)
+	
+	blenderLatticeObject = bpy.data.objects.new(name, blenderLattice)
+	blenderLatticeObject.parent = bpy.data.objects[objectID]
+	context.scene.objects.link(blenderLatticeObject)
+	context.scene.update()
+
+def createFittingBoundingBox(context, meshObject):
+	transformedMesh = meshObject.data.copy()
+	transformedMesh.transform(meshObject.matrix_world)
+	transformedMeshObject = bpy.data.objects.new('measurement', transformedMesh)
+	boundingBox = transformedMeshObject.bound_box
+	minCoordinates = tuple(min([boundingBox[j][i] for j in range(8)]) for i in range(3))
+	maxCoordinates = tuple(max([boundingBox[j][i] for j in range(8)]) for i in range(3))
+	bpy.data.objects.remove(transformedMeshObject)
+	bpy.data.meshes.remove(transformedMesh)
+	
+	createBoundingBox(context, meshObject, minCoordinates, maxCoordinates)
 
 def importFmdl(context, fmdl, filename, importSettings = None):
 	UV_MAP_COLOR = 'UVMap'
@@ -403,9 +443,9 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		return meshObjectIDs
 	
-	def addMeshGroup(context, meshGroup, meshObjectIDs):
+	def addMeshGroup(context, meshGroup, meshObjectIDs, importBoundingBoxMode):
 		if len(meshGroup.meshes) == 0 and len(meshGroup.children) == 1 and meshGroup.name == "":
-			return addMeshGroup(context, meshGroup.children[0], meshObjectIDs)
+			return addMeshGroup(context, meshGroup.children[0], meshObjectIDs, importBoundingBoxMode)
 		
 		if len(meshGroup.meshes) == 1:
 			blenderMeshGroupObject = bpy.data.objects[meshObjectIDs[meshGroup.meshes[0]]]
@@ -416,14 +456,31 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			for mesh in meshGroup.meshes:
 				bpy.data.objects[meshObjectIDs[mesh]].parent = blenderMeshGroupObject
 		
+		for mesh in meshGroup.meshes:
+			if (
+				   importBoundingBoxMode == 'ALL'
+				or (importBoundingBoxMode == 'CUSTOM' and 'custom-bounding-box-meshes' in mesh.extensionHeaders)
+			):
+				minCoordinates = (
+					meshGroup.boundingBox.min.x,
+					-meshGroup.boundingBox.max.z,
+					meshGroup.boundingBox.min.y,
+				)
+				maxCoordinates = (
+					meshGroup.boundingBox.max.x,
+					-meshGroup.boundingBox.min.z,
+					meshGroup.boundingBox.max.y,
+				)
+				createBoundingBox(context, bpy.data.objects[meshObjectIDs[mesh]], minCoordinates, maxCoordinates)
+		
 		meshGroupID = blenderMeshGroupObject.name
 		for child in meshGroup.children:
-			childID = addMeshGroup(context, child, meshObjectIDs)
+			childID = addMeshGroup(context, child, meshObjectIDs, importBoundingBoxMode)
 			bpy.data.objects[childID].parent = bpy.data.objects[meshGroupID]
 		
 		return meshGroupID
 	
-	def importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename):
+	def importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename, importBoundingBoxMode):
 		rootMeshGroups = []
 		for meshGroup in fmdl.meshGroups:
 			if meshGroup.parent == None:
@@ -443,7 +500,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		rootMeshGroup.children = rootMeshGroups
 		rootMeshGroup.meshes = []
 		
-		blenderMeshGroupID = addMeshGroup(context, rootMeshGroup, meshObjectIDs)
+		blenderMeshGroupID = addMeshGroup(context, rootMeshGroup, meshObjectIDs, importBoundingBoxMode)
 		
 		if armatureObjectID != None:
 			bpy.data.objects[armatureObjectID].parent = bpy.data.objects[blenderMeshGroupID]
@@ -472,6 +529,13 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	if importSettings.enableExtensions and importSettings.enableVertexLoopPreservation:
 		fmdl = FmdlSplitVertexEncoding.decodeFmdlVertexLoopPreservation(fmdl)
 	
+	if importSettings.enableImportAllBoundingBoxes:
+		importBoundingBoxMode = 'ALL'
+	elif importSettings.enableExtensions:
+		importBoundingBoxMode = 'CUSTOM'
+	else:
+		importBoundingBoxMode = 'NONE'
+	
 	baseDir = os.path.dirname(filename)
 	textureSearchPath = []
 	for directory in [
@@ -496,7 +560,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	
 	meshObjectIDs = importMeshes(context, fmdl, materialIDs, armatureObjectID, boneIDs)
 	
-	rootMeshGroupID = importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename)
+	rootMeshGroupID = importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename, importBoundingBoxMode)
 	
 	
 	
@@ -905,6 +969,44 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		return mesh
 	
+	def exportCustomBoundingBox(blenderMeshObject, fmdlMeshObject):
+		latticeObject = None
+		for child in blenderMeshObject.children:
+			if child.type == 'LATTICE':
+				if latticeObject is not None:
+					raise FmdlExportError("Mesh '%s' has multiple conflicting custom bounding boxes." % blenderMeshObject.name)
+				latticeObject = child
+		
+		if latticeObject is None:
+			return None
+		
+		fmdlMeshObject.extensionHeaders.add("Custom-Bounding-Box-Meshes")
+		
+		transformedLattice = latticeObject.data.copy()
+		transformedLattice.transform(latticeObject.matrix_world)
+		transformedLatticeObject = bpy.data.objects.new('measurement', transformedLattice)
+		boundingBox = transformedLatticeObject.bound_box
+		boundingBoxFmdlNotation = [(boundingBox[i][0], boundingBox[i][2], -boundingBox[i][1]) for i in range(8)]
+		minCoordinates = tuple(min([boundingBoxFmdlNotation[j][i] for j in range(8)]) for i in range(3))
+		maxCoordinates = tuple(max([boundingBoxFmdlNotation[j][i] for j in range(8)]) for i in range(3))
+		bpy.data.objects.remove(transformedLatticeObject)
+		bpy.data.lattices.remove(transformedLattice)
+		
+		return FmdlFile.FmdlFile.BoundingBox(
+			FmdlFile.FmdlFile.Vector4(
+				minCoordinates[0],
+				minCoordinates[1],
+				minCoordinates[2],
+				1.0
+			),
+			FmdlFile.FmdlFile.Vector4(
+				maxCoordinates[0],
+				maxCoordinates[1],
+				maxCoordinates[2],
+				1.0
+			)
+		)
+	
 	def determineParentBlenderObject(blenderObject, blenderRootObject, parentBlenderObjects):
 		if blenderObject in parentBlenderObjects:
 			return
@@ -1015,7 +1117,10 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 					)
 				)
 	
-	def calculateMeshBoundingBox(mesh):
+	def calculateMeshBoundingBox(mesh, meshCustomBoundingBoxes):
+		if mesh in meshCustomBoundingBoxes:
+			return meshCustomBoundingBoxes[mesh]
+		
 		vertices = mesh.vertices
 		if len(vertices) == 0:
 			return None
@@ -1035,14 +1140,14 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			)
 		)
 	
-	def calculateMeshGroupBoundingBox(meshGroup):
+	def calculateMeshGroupBoundingBox(meshGroup, meshCustomBoundingBoxes):
 		boundingBoxes = []
 		for mesh in meshGroup.meshes:
-			boundingBox = calculateMeshBoundingBox(mesh)
+			boundingBox = calculateMeshBoundingBox(mesh, meshCustomBoundingBoxes)
 			if boundingBox != None:
 				boundingBoxes.append(boundingBox)
 		for child in meshGroup.children:
-			boundingBox = calculateMeshGroupBoundingBox(child)
+			boundingBox = calculateMeshGroupBoundingBox(child, meshCustomBoundingBoxes)
 			if boundingBox != None:
 				boundingBoxes.append(boundingBox)
 		
@@ -1070,12 +1175,12 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		return meshGroup.boundingBox
 	
-	def calculateBoundingBoxes(meshGroups, bones, meshes):
+	def calculateBoundingBoxes(meshGroups, bones, meshes, meshCustomBoundingBoxes):
 		calculateBoneBoundingBoxes(bones, meshes)
 		
 		for meshGroup in meshGroups:
 			if meshGroup.parent == None:
-				calculateMeshGroupBoundingBox(meshGroup)
+				calculateMeshGroupBoundingBox(meshGroup, meshCustomBoundingBoxes)
 	
 	def listMeshObjects(context, rootObjectName):
 		if rootObjectName != None and rootObjectName not in context.scene.objects:
@@ -1133,15 +1238,20 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 	(bones, bonesByName) = exportBones(blenderMeshObjects)
 	
 	meshFmdlObjects = {}
+	meshCustomBoundingBoxes = {}
 	for blenderMeshObject in blenderMeshObjects:
 		mesh = exportMesh(blenderMeshObject, materialFmdlObjects, bonesByName, context.scene)
 		meshFmdlObjects[blenderMeshObject] = mesh
+		
+		boundingBox = exportCustomBoundingBox(blenderMeshObject, mesh)
+		if boundingBox is not None:
+			meshCustomBoundingBoxes[mesh] = boundingBox
 	
 	meshGroups = exportMeshGroups(blenderMeshObjects, meshFmdlObjects, blenderRootObject)
 	
 	meshes = sortMeshes(meshGroups)
 	
-	calculateBoundingBoxes(meshGroups, bones, meshes)
+	calculateBoundingBoxes(meshGroups, bones, meshes, meshCustomBoundingBoxes)
 	
 	fmdlFile = FmdlFile.FmdlFile()
 	fmdlFile.bones = bones

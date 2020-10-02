@@ -432,6 +432,7 @@ def buildSubmesh(mesh, parentBones, storableItemsPerBone, equipresentVertices, e
 	submesh.alphaEnum = mesh.alphaEnum
 	submesh.shadowEnum = mesh.shadowEnum
 	submesh.vertexFields = mesh.vertexFields
+	submesh.extensionHeaders = mesh.extensionHeaders.copy()
 	submesh.boneGroup = FmdlFile.FmdlFile.BoneGroup()
 	submesh.boneGroup.bones = [bone for bone in mesh.boneGroup.bones if bone in selectedBones]
 	submesh.vertexEncoding = [vertex for vertexSet in selectedEquipresentVertices for vertex in vertexSet.vertices]
@@ -591,7 +592,6 @@ def encodeFmdlSplitMeshes(fmdl):
 		encodedMeshGroup = FmdlFile.FmdlFile.MeshGroup()
 		output.meshGroups.append(encodedMeshGroup)
 		meshGroupMap[meshGroup] = encodedMeshGroup
-	splitMeshGroups = []
 	for meshGroup in fmdl.meshGroups:
 		encodedMeshGroup = meshGroupMap[meshGroup]
 		encodedMeshGroup.name = meshGroup.name
@@ -614,7 +614,7 @@ def encodeFmdlSplitMeshes(fmdl):
 				newMeshGroup.parent = encodedMeshGroup
 				encodedMeshGroup.children.append(newMeshGroup)
 				newMeshGroup.meshes = replacedMeshes[mesh]
-				splitMeshGroups.append(newMeshGroup)
+				newMeshGroup.extensionHeaders = { 'Split-Mesh-Groups' }
 				output.meshGroups.append(newMeshGroup)
 			else:
 				encodedMeshGroup.meshes.append(mesh)
@@ -622,7 +622,6 @@ def encodeFmdlSplitMeshes(fmdl):
 	if 'X-FMDL-Extensions' not in output.extensionHeaders:
 		output.extensionHeaders['X-FMDL-Extensions'] = []
 	output.extensionHeaders['X-FMDL-Extensions'].append("mesh-splitting")
-	output.extensionHeaders['Split-Mesh-Groups'] = splitMeshGroups
 	
 	return output
 
@@ -662,6 +661,7 @@ def combineMeshes(meshes, bones):
 	output.alphaEnum = meshes[0].alphaEnum
 	output.shadowEnum = meshes[0].shadowEnum
 	output.vertexFields = meshes[0].vertexFields
+	output.extensionHeaders = meshes[0].extensionHeaders.copy()
 	
 	output.vertexEncoding = []
 	output.vertices = []
@@ -684,17 +684,11 @@ def combineMeshes(meshes, bones):
 def decodeFmdlSplitMeshes(fmdl):
 	if fmdl.extensionHeaders == None or "mesh-splitting" not in fmdl.extensionHeaders['x-fmdl-extensions']:
 		return fmdl
-	if 'split-mesh-groups' not in fmdl.extensionHeaders:
-		return fmdl
 	splitMeshes = {}
-	for item in fmdl.extensionHeaders['split-mesh-groups']:
-		try:
-			index = int(item)
-		except:
-			continue
-		if 0 <= index < len(fmdl.meshGroups):
-			for mesh in fmdl.meshGroups[index].meshes:
-				splitMeshes[mesh] = fmdl.meshGroups[index]
+	for meshGroup in fmdl.meshGroups:
+		if 'split-mesh-groups' in meshGroup.extensionHeaders:
+			for mesh in meshGroup.meshes:
+				splitMeshes[mesh] = meshGroup
 	combinedMeshes = {}
 	
 	if len(splitMeshes) == 0:

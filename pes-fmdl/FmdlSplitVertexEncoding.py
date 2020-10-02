@@ -160,6 +160,7 @@ def encodeMeshVertexLoopPreservation(mesh):
 	output.vertices = [encodedVertex.vertex for encodedVertex in encodedVertices]
 	output.faces = replaceFaceVertices(mesh.faces, replacedVertices)
 	output.vertexEncoding = encodedVertices
+	output.extensionHeaders = mesh.extensionHeaders.copy()
 	
 	return output
 
@@ -255,6 +256,7 @@ def decodeMeshVertexLoopPreservation(mesh):
 	output.vertices = vertices
 	output.faces = replaceFaceVertices(mesh.faces, replacedVertices)
 	output.vertexEncoding = vertexEncoding
+	output.extensionHeaders = mesh.extensionHeaders.copy()
 	
 	return output
 

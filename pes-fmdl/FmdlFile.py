@@ -315,6 +315,10 @@ class FmdlFile:
 			self.uv = []
 	
 	class Mesh:
+		extensionHeaders = {
+			'Custom-Bounding-Box-Meshes',
+		}
+		
 		def __init__(self):
 			self.vertices = []
 			self.faces = []
@@ -324,9 +328,14 @@ class FmdlFile:
 			self.shadowEnum = None
 			self.vertexFields = None
 			# extension fields
+			self.extensionHeaders = set()
 			self.vertexEncoding = None
 	
 	class MeshGroup:
+		extensionHeaders = {
+			'Split-Mesh-Groups',
+		}
+		
 		def __init__(self):
 			self.name = None
 			self.parent = None
@@ -334,6 +343,8 @@ class FmdlFile:
 			self.meshes = []
 			self.boundingBox = None
 			self.visible = None
+			# extension fields
+			self.extensionHeaders = set()
 	
 	
 	
@@ -493,7 +504,7 @@ class FmdlFile:
 		return bones
 	
 	@staticmethod
-	def parseMeshGroups(fmdl, strings, boundingBoxes, meshes):
+	def parseMeshGroups(fmdl, strings, boundingBoxes, meshes, extensionHeaders):
 		if 1 in fmdl.segment0Blocks:
 			block = fmdl.segment0Blocks[1]
 		else:
@@ -516,6 +527,7 @@ class FmdlFile:
 			meshGroup.name = name
 			meshGroup.visible = (invisible == 0)
 			meshGroup.parentID = parentID
+			meshGroup.extensionHeaders = FmdlFile.parseObjectExtensionHeaders(extensionHeaders, FmdlFile.MeshGroup.extensionHeaders, len(meshGroups))
 			meshGroups.append(meshGroup)
 		
 		for meshGroup in meshGroups:
@@ -582,7 +594,7 @@ class FmdlFile:
 		return assignments
 	
 	@staticmethod
-	def parseMeshes(fmdl, bones, materialInstances):
+	def parseMeshes(fmdl, bones, materialInstances, extensionHeaders):
 		if 3 not in fmdl.segment0Blocks:
 			return []
 		
@@ -696,6 +708,7 @@ class FmdlFile:
 			mesh.shadowEnum = shadowEnum
 			mesh.vertexFields = vertexFields
 			mesh.vertexEncoding = vertexEncodings
+			mesh.extensionHeaders = FmdlFile.parseObjectExtensionHeaders(extensionHeaders, FmdlFile.Mesh.extensionHeaders, len(meshes))
 			meshes.append(mesh)
 		return meshes
 	
@@ -1230,6 +1243,15 @@ class FmdlFile:
 			faces.append(FmdlFile.Face(vertices[index1], vertices[index2], vertices[index3]))
 		return faces
 	
+	@staticmethod
+	def parseObjectExtensionHeaders(extensionHeaders, headerList, objectID):
+		output = set()
+		for header in headerList:
+			key = header.lower()
+			if extensionHeaders is not None and key in extensionHeaders and str(objectID) in extensionHeaders[key]:
+				output.add(key)
+		return output
+	
 	def readFile(self, filename):
 		fmdl = FmdlContainer()
 		fmdl.readFile(filename)
@@ -1238,8 +1260,8 @@ class FmdlFile:
 		boundingBoxes = self.parseBoundingBoxes(fmdl)
 		bones = self.parseBones(fmdl, strings, boundingBoxes)
 		materialInstances = self.parseMaterialInstances(fmdl, strings)
-		meshes = self.parseMeshes(fmdl, bones, materialInstances)
-		meshGroups = self.parseMeshGroups(fmdl, strings, boundingBoxes, meshes)
+		meshes = self.parseMeshes(fmdl, bones, materialInstances, extensionHeaders)
+		meshGroups = self.parseMeshGroups(fmdl, strings, boundingBoxes, meshes, extensionHeaders)
 		
 		self.bones = bones
 		self.materialInstances = materialInstances
@@ -1752,37 +1774,36 @@ class FmdlFile:
 		return firstFaceVertexID
 	
 	@staticmethod
-	def addExtensionHeaders(fmdl, extensionHeaders, meshIndices, meshGroupIndices):
+	def addExtensionHeaders(fmdl, fmdlFile, extensionHeaders, meshIndices, meshGroupIndices):
 		extensionsHeader = 'X-FMDL-Extensions'
 		flattenedExtensions = []
 		otherHeaders = {}
+		headerNames = {}
+		def addHeader(key, values):
+			if key.lower() in otherHeaders:
+				otherHeaders[key.lower()] += values
+			else:
+				otherHeaders[key.lower()] = values
+				headerNames[key.lower()] = key
 		for key in extensionHeaders:
 			if key.lower() == extensionsHeader.lower():
 				flattenedExtensions += extensionHeaders[key]
 			else:
-				otherHeaders[key] = extensionHeaders[key]
+				addHeader(key, extensionHeaders[key])
+		for i in range(len(fmdlFile.meshes)):
+			for key in fmdlFile.meshes[i].extensionHeaders:
+				addHeader(key, str(i))
+		for i in range(len(fmdlFile.meshGroups)):
+			for key in fmdlFile.meshGroups[i].extensionHeaders:
+				addHeader(key, str(i))
 		
 		if len(otherHeaders) == 0 and len(flattenedExtensions) == 0:
 			return
 		
-		def renderValue(value):
-			output = ''
-			for v in value:
-				if len(output) > 0:
-					output += ", "
-				
-				if isinstance(v, FmdlFile.Mesh):
-					output += str(meshIndices[v])
-				elif isinstance(v, FmdlFile.MeshGroup):
-					output += str(meshGroupIndices[v])
-				else:
-					output += str(v)
-			return output
-		
 		extensionString = ''
-		extensionString += extensionsHeader + ": " + renderValue(flattenedExtensions) + "\n"
+		extensionString += extensionsHeader + ": " + ', '.join(flattenedExtensions) + "\n"
 		for key in otherHeaders:
-			extensionString += key + ": " + renderValue(otherHeaders[key]) + "\n"
+			extensionString += headerNames[key] + ": " + ', '.join(otherHeaders[key]) + "\n"
 		
 		encoded = bytes(extensionString, 'utf-8')
 		fmdl.segment1Blocks[3] += encoded
@@ -1876,8 +1897,7 @@ class FmdlFile:
 		materialInstanceIndices = self.storeMaterialInstances(fmdl, stringIndices, self.materialInstances)
 		meshIndices = self.storeMeshes(fmdl, self.meshes, boneIndices, materialInstanceIndices)
 		meshGroupIndices = self.storeMeshGroups(fmdl, stringIndices, self.meshGroups, meshIndices)
-		if self.extensionHeaders != None:
-			self.addExtensionHeaders(fmdl, self.extensionHeaders, meshIndices, meshGroupIndices)
+		self.addExtensionHeaders(fmdl, self, self.extensionHeaders, meshIndices, meshGroupIndices)
 		
 		# Unknown purpose
 		self.addSegment0Block(fmdl, 18, pack('< 8x'))

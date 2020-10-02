@@ -954,7 +954,10 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			    blenderMeshObject.name.startswith('mesh_id ')
 			and blenderMeshObject not in parentBlenderObjects.values()
 		):
-			parentMeshGroup = exportMeshGroup(parentBlenderObjects[blenderMeshObject], parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
+			if parentBlenderObjects[blenderMeshObject] is not None:
+				parentMeshGroup = exportMeshGroup(parentBlenderObjects[blenderMeshObject], parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
+			else:
+				parentMeshGroup = None
 			meshGroup = createMeshGroup(blenderMeshObject, '', parentMeshGroup, meshGroups, meshGroupFmdlObjects)
 		else:
 			meshGroup = exportMeshGroup(blenderMeshObject, parentBlenderObjects, meshGroups, meshGroupFmdlObjects)

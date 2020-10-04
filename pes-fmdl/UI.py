@@ -31,6 +31,115 @@ def vertexGroupSummaryCleanup(objectNames):
 
 
 
+def exportSummaryTextName(objectName):
+	return "Export Summary for %s" % objectName
+
+def updateSummaries(scene):
+	textNames = set()
+	for object in scene.objects:
+		objectName = object.name
+		parent = object.parent
+		while parent is not None:
+			objectName = "%s/%s" % (parent.name, objectName)
+			parent = parent.parent
+		
+		textName = exportSummaryTextName(objectName)
+		if object.fmdl_file:
+			textNames.add(textName)
+			summary = IO.exportSummary(bpy.context, object.name)
+			if textName in bpy.data.texts:
+				text = bpy.data.texts[textName]
+				if text.as_string() != summary:
+					text.from_string(summary)
+			else:
+				text = bpy.data.texts.new(textName)
+				text.user_clear() # blender bug: texts start as users=1 instead of users=0
+				text.from_string(summary)
+				c = bpy.context.copy()
+				c['edit_text'] = text
+				bpy.ops.text.make_internal(c)
+				bpy.ops.text.jump(c, line=1)
+	removeList = []
+	for textName in bpy.data.texts.keys():
+		if textName.startswith("Export Summary for ") and textName not in textNames:
+			removeList.append(textName)
+	for textName in removeList:
+		bpy.data.texts.remove(bpy.data.texts[textName])
+
+latestObjectTree = ()
+
+@bpy.app.handlers.persistent
+def FMDL_Scene_TrackExportSummaryUpdates(scene):
+	if bpy.context.mode != 'OBJECT':
+		return
+	found = scene.is_updated or scene.is_updated_data
+	if not found:
+		objectTree = []
+		for object in scene.objects:
+			objectTree.append((object.name, object.parent.name if object.parent is not None else None))
+			if object.is_updated or object.is_updated_data:
+				found = True
+		objectTuple = tuple(objectTree)
+		global latestObjectTree
+		if objectTuple != latestObjectTree:
+			latestObjectTree = objectTuple
+			found = True
+	if found:
+		updateSummaries(scene)
+
+class FMDL_Util_window_set_screen(bpy.types.Operator):
+	"""Set window screen"""
+	bl_idname = "fmdl.window_set_screen"
+	bl_label = "Set window screen"
+	bl_options = {'INTERNAL'}
+	
+	screenName = bpy.props.StringProperty(name = "Screen name")
+	
+	def execute(self, context):
+		context.window.screen = bpy.data.screens[self.screenName]
+		return {'FINISHED'}
+
+def createTextEditWindow(context):
+	originalWindow = context.window
+	
+	bpy.ops.screen.area_dupli('INVOKE_DEFAULT')
+	screen = context.window_manager.windows[-1].screen
+	
+	# This must happen before the window is destroyed.
+	screen.areas[0].type = 'TEXT_EDITOR'
+	
+	screen.name = "Export Summaries"
+	screenName = screen.name
+	c = context.copy()
+	c['window'] = context.window_manager.windows[-1]
+	bpy.ops.wm.window_close(c)
+	
+	c = context.copy()
+	c['window'] = originalWindow
+	bpy.ops.wm.window_duplicate(c)
+	oldScreenName = context.window_manager.windows[-1].screen.name
+	
+	c = context.copy()
+	c['window'] = context.window_manager.windows[-1]
+	c['screen'] = bpy.data.screens[oldScreenName]
+	bpy.ops.screen.delete(c)
+	
+	c = context.copy()
+	c['window'] = context.window_manager.windows[-1]
+	bpy.ops.fmdl.window_set_screen(c, screenName = screen.name)
+	
+	return screen.areas[0]
+
+def createTextEditArea(context):
+	for window in context.window_manager.windows:
+		if window.screen is not None:
+			for area in window.screen.areas:
+				if area.type == 'TEXT_EDITOR':
+					return area
+	return createTextEditWindow(context)
+
+
+
 class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	"""Load a PES FMDL file"""
 	bl_idname = "import_scene.fmdl"
@@ -161,6 +270,28 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 		
 		self.report({'INFO'}, "Fmdl exported successfully.") 
 		
+		return {'FINISHED'}
+
+class FMDL_Scene_Export_Object_Summary(bpy.types.Operator):
+	"""Show a summary for a PES FMDL export of an invidual object"""
+	bl_idname = "fmdl.export_summary_object"
+	bl_label = "Export Summary"
+	bl_options = {'REGISTER'}
+	
+	objectName = bpy.props.StringProperty("Object to export")
+	
+	@classmethod
+	def poll(cls, context):
+		return context.mode == 'OBJECT' and context.active_object != None
+	
+	def execute(self, context):
+		area = createTextEditArea(context)
+		textName = exportSummaryTextName(self.objectName)
+		if textName in bpy.data.texts:
+			for space in area.spaces:
+				if space.type == 'TEXT_EDITOR':
+					space.text = bpy.data.texts[textName]
+					break
 		return {'FINISHED'}
 
 class FMDL_Scene_Panel_FMDL_Import_Settings(bpy.types.Menu):
@@ -301,6 +432,7 @@ class FMDL_Scene_Panel(bpy.types.Panel):
 			exportSettings.mesh_splitting = object.fmdl_export_mesh_splitting
 			if object.fmdl_filename == "":
 				subrow.enabled = False
+			row.operator(FMDL_Scene_Export_Object_Summary.bl_idname, text = "", icon = 'INFO').objectName = object.name
 			row.menu(FMDL_Scene_Panel_FMDL_Export_Settings.__name__, icon = 'DOWNARROW_HLT', text = "")
 
 
@@ -659,6 +791,8 @@ class FMDL_Object_BoundingBox_Panel(bpy.types.Panel):
 
 @bpy.app.handlers.persistent
 def FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates(scene):
+	if bpy.context.mode != 'OBJECT':
+		return
 	meshObjectNames = set()
 	for object in scene.objects:
 		if object.type == 'MESH':
@@ -1109,9 +1243,12 @@ class FMDL_Texture_Panel(bpy.types.Panel):
 
 
 classes = [
+	FMDL_Util_window_set_screen,
+	
 	FMDL_Scene_Import,
 	FMDL_Scene_Export_Scene,
 	FMDL_Scene_Export_Object,
+	FMDL_Scene_Export_Object_Summary,
 	FMDL_Scene_Panel_FMDL_Import_Settings,
 	FMDL_Scene_Panel_FMDL_Compose,
 	FMDL_Scene_Panel_FMDL_Remove,
@@ -1202,10 +1339,12 @@ def register():
 	bpy.types.INFO_MT_file_export.append(FMDL_Scene_FMDL_Export_MenuItem)
 	bpy.types.TEXTURE_PT_image.append(FMDL_Texture_Load_Ftex_Button)
 	
+	bpy.app.handlers.scene_update_post.append(FMDL_Scene_TrackExportSummaryUpdates)
 	bpy.app.handlers.scene_update_post.append(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
 
 def unregister():
 	bpy.app.handlers.scene_update_post.remove(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
+	bpy.app.handlers.scene_update_post.remove(FMDL_Scene_TrackExportSummaryUpdates)
 	
 	bpy.types.TEXTURE_PT_image.remove(FMDL_Texture_Load_Ftex_Button)
 	bpy.types.INFO_MT_file_export.remove(FMDL_Scene_FMDL_Export_MenuItem)

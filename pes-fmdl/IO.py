@@ -1286,3 +1286,146 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		raise FmdlExportError(errors)
 	
 	return fmdlFile
+
+def exportSummary(context, rootObjectName):
+	def objectName(blenderObject, rootObject):
+		name = blenderObject.name
+		parent = blenderObject.parent
+		while parent is not None and parent != rootObject:
+			name = "%s/%s" % (parent.name, name)
+			parent = parent.parent
+		return name
+	
+	def materialSummary(material):
+		output = "\tMaterial %s:\n" % material.name
+		output += "\t\tshader \"%s\"\n" % material.fmdl_material_shader
+		output += "\t\ttechnique \"%s\"\n" % material.fmdl_material_technique
+		for parameter in material.fmdl_material_parameters:
+			output += "\t\tparameter [%s] = [%.2f, %.2f, %.2f, %.2f]\n" % (parameter.name, *parameter.parameters)
+		for slot in material.texture_slots:
+			if slot == None:
+				continue
+			output += "\t\ttexture [%s] = \n" % slot.texture.fmdl_texture_role
+			output += "\t\t\t\"%s\"\n" % slot.texture.fmdl_texture_directory
+			output += "\t\t\t\t\"%s\"\n" % slot.texture.fmdl_texture_filename
+		return output
+	
+	def skeletonSummary(armature):
+		bodyPartAllBones = {}
+		for pesVersion in PesSkeletonData.skeletonBones:
+			for bodyPart in PesSkeletonData.skeletonBones[pesVersion]:
+				if bodyPart not in bodyPartAllBones:
+					bodyPartAllBones[bodyPart] = set()
+				bodyPartAllBones[bodyPart].update(PesSkeletonData.skeletonBones[pesVersion][bodyPart])
+		bodyPartUniqueBones = {}
+		for bodyPart in bodyPartAllBones:
+			bodyPartUniqueBones[bodyPart] = bodyPartAllBones[bodyPart].copy()
+			for otherBodyPart in bodyPartAllBones:
+				if otherBodyPart != bodyPart:
+					bodyPartUniqueBones[bodyPart].difference_update(bodyPartAllBones[otherBodyPart])
+		
+		bones = sorted([bone.name for bone in armature.bones])
+		requiredBodyParts = set()
+		for bone in bones:
+			for bodyPart in bodyPartUniqueBones:
+				if bone in bodyPartUniqueBones[bodyPart]:
+					requiredBodyParts.add(bodyPart)
+		
+		bodyPartVersions = {}
+		unknownBones = []
+		for bone in bones:
+			selectedBodyPart = None
+			for bodyPart in requiredBodyParts:
+				if bone in bodyPartAllBones[bodyPart]:
+					selectedBodyPart = bodyPart
+					break
+			if selectedBodyPart is None:
+				for bodyPart in sorted(list(bodyPartAllBones.keys()), reverse=True):
+					if bone in bodyPartAllBones[bodyPart]:
+						selectedBodyPart = bodyPart
+						break
+			
+			if selectedBodyPart is None:
+				unknownBones.append(bone)
+			else:
+				for pesVersion in PesSkeletonData.skeletonBones:
+					if bone in PesSkeletonData.skeletonBones[pesVersion][selectedBodyPart]:
+						minimumPesVersion = pesVersion
+						break
+				# minimumPesVersion MUST be set at this point
+				if selectedBodyPart not in bodyPartVersions or bodyPartVersions[selectedBodyPart] < minimumPesVersion:
+					bodyPartVersions[selectedBodyPart] = minimumPesVersion
+		
+		output = ""
+		if len(bodyPartVersions) == 0 and len(unknownBones) == 0:
+			output += "\tSkeleton: none\n"
+		elif len(bodyPartVersions) == 1 and len(unknownBones) == 0:
+			bodyPart = list(bodyPartVersions.keys())[0]
+			output += "\tSkeleton: %s %s\n" % (bodyPartVersions[bodyPart], bodyPart)
+		else:
+			output += "\tSkeleton:\n"
+			for bodyPart in sorted(list(bodyPartVersions.keys())):
+				output += "\t\tFound bones for %s %s\n" % (bodyPartVersions[bodyPart], bodyPart)
+			if len(unknownBones) > 0:
+				chunks = [[]]
+				for bone in unknownBones:
+					if len(chunks[-1]) >= 6:
+						chunks.append([])
+					chunks[-1].append('"%s"' % bone)
+				output += "\t\tFound unknown bones:\n"
+				for boneChunk in chunks:
+					output += "\t\t\t%s\n" % ", ".join(boneChunk)
+		return output
+	
+	def meshSummary(blenderMeshObject, rootObject):
+		mesh = blenderMeshObject.data
+		lattices = [child for child in blenderMeshObject.children if child.type == 'LATTICE']
+		armatures = [modifier.object.data for modifier in blenderMeshObject.modifiers if modifier.type == 'ARMATURE']
+		
+		output = "Exporting mesh %s\n" % objectName(blenderMeshObject, rootObject)
+		output += "\tVertices: %s\n" % len(mesh.vertices)
+		output += "\tFaces: %s\n" % len(mesh.polygons)
+		output += "\tAlpha Enum: %s\n" % mesh.fmdl_alpha_enum
+		output += "\tShadow Enum: %s\n" % mesh.fmdl_shadow_enum
+		if len(mesh.vertex_colors) == 1:
+			output += "\tMesh has vertex color information\n"
+		elif len(mesh.vertex_colors) > 1:
+			output += "\tMesh has inconsistent vertex color information\n"
+		if len(lattices) == 1:
+			output += "\tMesh has custom bounding box\n"
+		elif len(lattices) > 1:
+			output += "\tMesh has inconsistent bounding box\n"
+		if len(mesh.materials) == 0:
+			output += "\tMaterial: none\n"
+		elif len(mesh.materials) == 1:
+			output += materialSummary(mesh.materials[0])
+		else:
+			output += "\tMaterial: inconsistent\n"
+		if len(armatures) == 0:
+			output += "\tSkeleton: none\n"
+		elif len(armatures) == 1:
+			output += skeletonSummary(armatures[0])
+		else:
+			output += "\tSkeleton: inconsistent\n"
+		return output
+	
+	meshObjects = {}
+	if rootObjectName is None:
+		rootObject = None
+		output = "Export summary\n"
+		for blenderObject in context.scene.objects:
+			if blenderObject.type == 'MESH' and len(blenderObject.data.polygons) > 0:
+				meshObjects[objectName(blenderObject, rootObject)] = blenderObject
+	else:
+		rootObject = bpy.data.objects[rootObjectName]
+		output = "Export summary for %s\n" % objectName(rootObject, None)
+		def findMeshObjects(blenderObject):
+			if blenderObject.type == 'MESH' and len(blenderObject.data.polygons) > 0:
+				meshObjects[objectName(blenderObject, rootObject)] = blenderObject
+			for child in blenderObject.children:
+				findMeshObjects(child)
+		findMeshObjects(rootObject)
+	output += "------------------------------\n"
+	for key in sorted(list(meshObjects.keys())):
+		output += meshSummary(meshObjects[key], rootObject)
+	return output

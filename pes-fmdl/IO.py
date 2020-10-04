@@ -168,6 +168,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		if textureRole == 'Base_Tex_SRGB' or textureRole == 'Base_Tex_LIN':
 			blenderTextureSlot.use_map_diffuse = True
 			blenderTextureSlot.use_map_color_diffuse = True
+			blenderTextureSlot.use_map_alpha = True
 			blenderTextureSlot.use = True
 		else:
 			blenderTextureSlot.use = False
@@ -206,6 +207,8 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 				uvMapNormals = UV_MAP_COLOR
 			
 			blenderMaterial.emit = 1.0
+			blenderMaterial.alpha = 0.0
+			blenderMaterial.use_transparency = True
 			
 			for (role, texture) in materialInstance.textures:
 				addTexture(blenderMaterial, role, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath, loadTextures)

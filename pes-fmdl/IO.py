@@ -1189,12 +1189,20 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		if rootObjectName != None and rootObjectName not in context.scene.objects:
 			rootObjectName = None
 		
+		blenderMeshObjects = []
+		def findMeshObjects(blenderObject, blenderMeshObjects):
+			if blenderObject.type == 'MESH' and len(blenderObject.data.polygons) > 0:
+				blenderMeshObjects.append(blenderObject)
+			childNames = [child.name for child in blenderObject.children]
+			for childName in sorted(childNames):
+				findMeshObjects(bpy.data.objects[childName], blenderMeshObjects)
 		if rootObjectName == None:
 			blenderMeshObjects = []
 			blenderArmatureObjects = []
 			for object in context.scene.objects:
+				if object.parent is None:
+					findMeshObjects(object, blenderMeshObjects)
 				if object.type == 'MESH' and len(object.data.polygons) > 0:
-					blenderMeshObjects.append(object)
 					for modifier in object.modifiers:
 						if modifier.type == 'ARMATURE':
 							blenderArmatureObject = modifier.object
@@ -1210,13 +1218,6 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 				blenderRootObject = None
 		else:
 			blenderRootObject = context.scene.objects[rootObjectName]
-			blenderMeshObjects = []
-			
-			def findMeshObjects(blenderObject, blenderMeshObjects):
-				if blenderObject.type == 'MESH' and len(blenderObject.data.polygons) > 0:
-					blenderMeshObjects.append(blenderObject)
-				for child in blenderObject.children:
-					findMeshObjects(child, blenderMeshObjects)
 			findMeshObjects(blenderRootObject, blenderMeshObjects)
 			
 			if blenderRootObject.type == 'MESH' and len(blenderRootObject.data.polygons) > 0:

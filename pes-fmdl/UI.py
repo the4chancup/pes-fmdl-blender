@@ -29,7 +29,9 @@ def vertexGroupSummaryCleanup(objectNames):
 		if objectName not in objectNames:
 			del vertexGroupSummaryCache[objectName]
 
-
+inActiveUpdate = False
+latestObjectTree = ()
+latestMeshObjectList = ()
 
 def exportSummaryTextName(objectName):
 	return "Export Summary for %s" % objectName
@@ -66,26 +68,76 @@ def updateSummaries(scene):
 	for textName in removeList:
 		bpy.data.texts.remove(bpy.data.texts[textName])
 
-latestObjectTree = ()
+def synchronizeMeshOrder(scene):
+	objectNames = {o.name for o in scene.objects}
+	rootObjectNames = [o.name for o in scene.objects if o.parent is None or o.parent.name not in objectNames]
+	
+	meshObjects = []
+	def findMeshObjects(object):
+		if object.type == 'MESH':
+			meshObjects.append(object.name)
+		childNames = [child.name for child in object.children if child.name in objectNames]
+		for childName in sorted(childNames):
+			findMeshObjects(bpy.data.objects[childName])
+	for objectName in sorted(rootObjectNames):
+		findMeshObjects(bpy.data.objects[objectName])
+	
+	for objectName in reversed(meshObjects):
+		scene.objects.unlink(bpy.data.objects[objectName])
+		scene.objects.link(bpy.data.objects[objectName])
 
 @bpy.app.handlers.persistent
-def FMDL_Scene_TrackExportSummaryUpdates(scene):
+def FMDL_Util_TrackChanges(scene):
+	#
+	# This function does three separate things:
+	# - it keeps vertexGroupSummaryCache up to date, with help of latestMeshObjectList
+	# - it keeps the list of export summaries up to date, with help of latestObjectTree
+	# - it keeps the scene mesh order sorted, with help of latestObjectTree
+	# These different jobs are merged into this single handler for efficiency,
+	# as this handler is called very often and needs to be tight.
+	#
+	#
+	global inActiveUpdate
 	if bpy.context.mode != 'OBJECT':
 		return
-	found = scene.is_updated or scene.is_updated_data
-	if not found:
-		objectTree = []
-		for object in scene.objects:
-			objectTree.append((object.name, object.parent.name if object.parent is not None else None))
-			if object.is_updated or object.is_updated_data:
-				found = True
-		objectTuple = tuple(objectTree)
-		global latestObjectTree
-		if objectTuple != latestObjectTree:
-			latestObjectTree = objectTuple
-			found = True
-	if found:
+	if inActiveUpdate:
+		return
+	objectTree = []
+	meshObjectList = []
+	objectChanged = False
+	objectListChanged = False
+	for object in scene.objects:
+		objectTree.append((object.name, object.parent.name if object.parent is not None else None))	
+		if object.is_updated or object.is_updated_data:
+			objectChanged = True
+		if object.type == 'MESH':
+			if object.is_updated_data:
+				vertexGroupSummaryRemove(object.name)
+			else:
+				meshObjectList.append(object.name)
+	
+	global latestObjectTree
+	objectTreeTuple = tuple(objectTree)
+	if objectTreeTuple != latestObjectTree:
+		latestObjectTree = objectTreeTuple
+		objectChanged = True
+		objectListChanged = True
+	
+	global latestMeshObjectList
+	meshObjectListTuple = tuple(meshObjectList)
+	if meshObjectListTuple != latestMeshObjectList:
+		latestMeshObjectList = meshObjectListTuple
+		vertexGroupSummaryCleanup(latestMeshObjectList)
+	
+	if objectChanged:
 		updateSummaries(scene)
+	
+	if objectListChanged:
+		inActiveUpdate = True
+		synchronizeMeshOrder(scene)
+		inActiveUpdate = False
+
+
 
 class FMDL_Util_window_set_screen(bpy.types.Operator):
 	"""Set window screen"""
@@ -789,19 +841,6 @@ class FMDL_Object_BoundingBox_Panel(bpy.types.Panel):
 
 
 
-@bpy.app.handlers.persistent
-def FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates(scene):
-	if bpy.context.mode != 'OBJECT':
-		return
-	meshObjectNames = set()
-	for object in scene.objects:
-		if object.type == 'MESH':
-			if object.is_updated_data:
-				vertexGroupSummaryRemove(object.name)
-			else:
-				meshObjectNames.add(object.name)
-	vertexGroupSummaryCleanup(meshObjectNames)
-
 def FMDL_Mesh_BoneGroup_Bone_get_enabled(bone):
 	return bone.name in bpy.context.active_object.vertex_groups
 
@@ -1339,12 +1378,10 @@ def register():
 	bpy.types.INFO_MT_file_export.append(FMDL_Scene_FMDL_Export_MenuItem)
 	bpy.types.TEXTURE_PT_image.append(FMDL_Texture_Load_Ftex_Button)
 	
-	bpy.app.handlers.scene_update_post.append(FMDL_Scene_TrackExportSummaryUpdates)
-	bpy.app.handlers.scene_update_post.append(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
+	bpy.app.handlers.scene_update_post.append(FMDL_Util_TrackChanges)
 
 def unregister():
-	bpy.app.handlers.scene_update_post.remove(FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates)
-	bpy.app.handlers.scene_update_post.remove(FMDL_Scene_TrackExportSummaryUpdates)
+	bpy.app.handlers.scene_update_post.remove(FMDL_Util_TrackChanges)
 	
 	bpy.types.TEXTURE_PT_image.remove(FMDL_Texture_Load_Ftex_Button)
 	bpy.types.INFO_MT_file_export.remove(FMDL_Scene_FMDL_Export_MenuItem)

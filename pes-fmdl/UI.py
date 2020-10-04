@@ -182,13 +182,21 @@ def createTextEditWindow(context):
 	
 	return screen.areas[0]
 
-def createTextEditArea(context):
+def findTextEditArea(context):
 	for window in context.window_manager.windows:
 		if window.screen is not None:
 			for area in window.screen.areas:
 				if area.type == 'TEXT_EDITOR':
 					return area
-	return createTextEditWindow(context)
+	return None
+
+def showExportSummary(area, objectName):
+	textName = exportSummaryTextName(objectName)
+	if textName in bpy.data.texts:
+		for space in area.spaces:
+			if space.type == 'TEXT_EDITOR':
+				space.text = bpy.data.texts[textName]
+				break
 
 
 
@@ -306,6 +314,10 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 		return bpy_extras.io_utils.ExportHelper.invoke(self, context, event)
 	
 	def execute(self, context):
+		summaryArea = findTextEditArea(context)
+		if summaryArea is not None:
+			showExportSummary(summaryArea, self.objectName)
+		
 		exportSettings = IO.ExportSettings()
 		exportSettings.enableExtensions = self.extensions_enabled
 		exportSettings.enableVertexLoopPreservation = self.loop_preservation
@@ -337,13 +349,10 @@ class FMDL_Scene_Export_Object_Summary(bpy.types.Operator):
 		return context.mode == 'OBJECT' and context.active_object != None
 	
 	def execute(self, context):
-		area = createTextEditArea(context)
-		textName = exportSummaryTextName(self.objectName)
-		if textName in bpy.data.texts:
-			for space in area.spaces:
-				if space.type == 'TEXT_EDITOR':
-					space.text = bpy.data.texts[textName]
-					break
+		area = findTextEditArea(context)
+		if area is None:
+			area = createTextEditWindow(context)
+		showExportSummary(area, self.objectName)
 		return {'FINISHED'}
 
 class FMDL_Scene_Panel_FMDL_Import_Settings(bpy.types.Menu):

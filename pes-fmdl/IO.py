@@ -1386,7 +1386,7 @@ def exportSummary(context, rootObjectName):
 		lattices = [child for child in blenderMeshObject.children if child.type == 'LATTICE']
 		armatures = [modifier.object.data for modifier in blenderMeshObject.modifiers if modifier.type == 'ARMATURE']
 		
-		output = "Exporting mesh %s\n" % objectName(blenderMeshObject, rootObject)
+		output = "Mesh %s\n" % objectName(blenderMeshObject, rootObject)
 		output += "\tVertices: %s\n" % len(mesh.vertices)
 		output += "\tFaces: %s\n" % len(mesh.polygons)
 		output += "\tAlpha Enum: %s\n" % mesh.fmdl_alpha_enum
@@ -1399,6 +1399,12 @@ def exportSummary(context, rootObjectName):
 			output += "\tMesh has custom bounding box\n"
 		elif len(lattices) > 1:
 			output += "\tMesh has inconsistent bounding box\n"
+		if (
+			   len(mesh.vertices) > FmdlMeshSplitting.VERTEX_LIMIT_HARD
+			or len(mesh.polygons) > FmdlMeshSplitting.FACE_LIMIT_HARD
+			or len(blenderMeshObject.vertex_groups) > FmdlMeshSplitting.BONE_LIMIT_HARD
+		):
+			output += "\tMesh will be split to fit within fmdl limitations\n"
 		if len(mesh.materials) == 0:
 			output += "\tMaterial: none\n"
 		elif len(mesh.materials) == 1:

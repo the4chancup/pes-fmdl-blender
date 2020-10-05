@@ -1,3 +1,7 @@
+0.5.2  2020-10-05
+
+	* Fixed exporting of vertices with total bone weight over 1.0.
+
 0.5.1  2020-10-05
 
 	* Meshes are now exported in the order they appear in the outliner.

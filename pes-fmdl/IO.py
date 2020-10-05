@@ -1313,7 +1313,7 @@ def exportSummary(context, rootObjectName):
 		return output
 	
 	def materialSummary(material):
-		output = "\tMaterial %s:\n" % material.name
+		output = "\tMaterial [%s]:\n" % material.name
 		output += "\t\tshader \"%s\"\n" % material.fmdl_material_shader
 		output += "\t\ttechnique \"%s\"\n" % material.fmdl_material_technique
 		for parameter in material.fmdl_material_parameters:
@@ -1398,7 +1398,7 @@ def exportSummary(context, rootObjectName):
 		lattices = [child for child in blenderMeshObject.children if child.type == 'LATTICE']
 		bones = [name for name in blenderMeshObject.vertex_groups.keys()]
 		
-		output = "Mesh %s\n" % objectName(blenderMeshObject, rootObject)
+		output = "Mesh [%s]\n" % objectName(blenderMeshObject, rootObject)
 		output += "\tVertices: %s\n" % len(mesh.vertices)
 		output += "\tFaces: %s\n" % len(mesh.polygons)
 		output += "\tBones: %s\n" % len(bones)

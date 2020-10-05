@@ -1668,11 +1668,12 @@ class FmdlFile:
 				for i in range(len(selectedBones)):
 					(bone, weight) = selectedBones[i]
 					if i == len(selectedBones) - 1:
-						boneWeight = remainingIntegralWeight
+						boneWeight = max(0, min(255, remainingIntegralWeight))
 					elif remainingSelectedWeight <= 0:
 						boneWeight = 0
 					else:
 						boneWeight = int((weight / remainingSelectedWeight) * remainingIntegralWeight + 0.5)
+						boneWeight = max(0, min(255, boneWeight))
 						remainingIntegralWeight -= boneWeight
 						remainingSelectedWeight -= weight
 					

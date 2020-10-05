@@ -1300,6 +1300,18 @@ def exportSummary(context, rootObjectName):
 			parent = parent.parent
 		return name
 	
+	def splittingSummary(vertices, faces, bones):
+		output = ""
+		if vertices > FmdlMeshSplitting.VERTEX_LIMIT_HARD:
+			output += "\t\tvertices > %s\n" % FmdlMeshSplitting.VERTEX_LIMIT_HARD
+		if faces > FmdlMeshSplitting.FACE_LIMIT_HARD:
+			output += "\t\tfaces > %s\n" % FmdlMeshSplitting.FACE_LIMIT_HARD
+		if bones > FmdlMeshSplitting.BONE_LIMIT_HARD:
+			output += "\t\tbones > %s\n" % FmdlMeshSplitting.BONE_LIMIT_HARD
+		if len(output) > 0:
+			output = "\tMesh will be split to fit within fmdl limitations:\n" + output
+		return output
+	
 	def materialSummary(material):
 		output = "\tMaterial %s:\n" % material.name
 		output += "\t\tshader \"%s\"\n" % material.fmdl_material_shader
@@ -1314,7 +1326,7 @@ def exportSummary(context, rootObjectName):
 			output += "\t\t\t\t\"%s\"\n" % slot.texture.fmdl_texture_filename
 		return output
 	
-	def skeletonSummary(armature):
+	def skeletonSummary(bones):
 		bodyPartAllBones = {}
 		for pesVersion in PesSkeletonData.skeletonBones:
 			for bodyPart in PesSkeletonData.skeletonBones[pesVersion]:
@@ -1328,7 +1340,7 @@ def exportSummary(context, rootObjectName):
 				if otherBodyPart != bodyPart:
 					bodyPartUniqueBones[bodyPart].difference_update(bodyPartAllBones[otherBodyPart])
 		
-		bones = sorted([bone.name for bone in armature.bones])
+		bones = sorted(bones)
 		requiredBodyParts = set()
 		for bone in bones:
 			for bodyPart in bodyPartUniqueBones:
@@ -1384,11 +1396,12 @@ def exportSummary(context, rootObjectName):
 	def meshSummary(blenderMeshObject, rootObject):
 		mesh = blenderMeshObject.data
 		lattices = [child for child in blenderMeshObject.children if child.type == 'LATTICE']
-		armatures = [modifier.object.data for modifier in blenderMeshObject.modifiers if modifier.type == 'ARMATURE']
+		bones = [name for name in blenderMeshObject.vertex_groups.keys()]
 		
 		output = "Mesh %s\n" % objectName(blenderMeshObject, rootObject)
 		output += "\tVertices: %s\n" % len(mesh.vertices)
 		output += "\tFaces: %s\n" % len(mesh.polygons)
+		output += "\tBones: %s\n" % len(bones)
 		output += "\tAlpha Enum: %s\n" % mesh.fmdl_alpha_enum
 		output += "\tShadow Enum: %s\n" % mesh.fmdl_shadow_enum
 		if len(mesh.vertex_colors) == 1:
@@ -1399,24 +1412,14 @@ def exportSummary(context, rootObjectName):
 			output += "\tMesh has custom bounding box\n"
 		elif len(lattices) > 1:
 			output += "\tMesh has inconsistent bounding box\n"
-		if (
-			   len(mesh.vertices) > FmdlMeshSplitting.VERTEX_LIMIT_HARD
-			or len(mesh.polygons) > FmdlMeshSplitting.FACE_LIMIT_HARD
-			or len(blenderMeshObject.vertex_groups) > FmdlMeshSplitting.BONE_LIMIT_HARD
-		):
-			output += "\tMesh will be split to fit within fmdl limitations\n"
+		output += splittingSummary(len(mesh.vertices), len(mesh.polygons), len(bones))
 		if len(mesh.materials) == 0:
 			output += "\tMaterial: none\n"
 		elif len(mesh.materials) == 1:
 			output += materialSummary(mesh.materials[0])
 		else:
 			output += "\tMaterial: inconsistent\n"
-		if len(armatures) == 0:
-			output += "\tSkeleton: none\n"
-		elif len(armatures) == 1:
-			output += skeletonSummary(armatures[0])
-		else:
-			output += "\tSkeleton: inconsistent\n"
+		output += skeletonSummary(bones)
 		return output
 	
 	meshObjects = {}

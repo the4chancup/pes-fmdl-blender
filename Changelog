@@ -1,3 +1,10 @@
+0.5.1  2020-10-05
+
+	* Meshes are now exported in the order they appear in the outliner.
+	* Meshes are now rendered in blender in the order they appear in the outliner.
+	* Improved imported material settings for transparent textures.
+	* Added bone information and mesh splitting information to export summary.
+
 0.5.0  2020-10-04
 
 	* Added texture loading for Texture render mode.

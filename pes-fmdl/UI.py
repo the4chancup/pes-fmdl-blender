@@ -300,12 +300,14 @@ class FMDL_Scene_Panel(bpy.types.Panel):
 @bpy.app.handlers.persistent
 def FMDL_Mesh_BoneGroup_TrackVertexGroupUsageUpdates(scene):
 	meshObjectNames = set()
-	for object in scene.objects:
-		if object.type == 'MESH':
-			if object.is_updated_data:
-				vertexGroupSummaryRemove(object.name)
-			else:
-				meshObjectNames.add(object.name)
+	depsgraph = bpy.context.evaluated_depsgraph_get()
+	if depsgraph.id_type_updated('MESH'):
+		for update in depsgraph.updates:
+			if isinstance(update.id, bpy.types.Mesh):
+				if update.is_updated_geometry or update.is_updated_transform:
+					vertexGroupSummaryRemove(update.id)
+				else:
+					meshObjectNames.add(update.id)
 	vertexGroupSummaryCleanup(meshObjectNames)
 
 def FMDL_Mesh_BoneGroup_Bone_get_enabled(bone):

@@ -19,6 +19,9 @@ class ImportSettings:
 		self.enableExtensions = True
 		self.enableVertexLoopPreservation = True
 		self.enableMeshSplitting = True
+		self.enableLoadTextures = True
+		self.enableImportAllBoundingBoxes = False
+
 
 class ExportSettings:
 	def __init__(self):
@@ -34,14 +37,55 @@ def setActiveObject(context, blenderObject):
 		context.scene.objects.active = blenderObject
 
 
+def createBoundingBox(context, meshObject, min, max):
+	name = "Bounding box for %s" % meshObject.data.name
+	objectID = meshObject.name
+	
+	blenderLattice = bpy.data.lattices.new(name)
+	blenderLattice.points_u = 2
+	blenderLattice.points_v = 2
+	blenderLattice.points_w = 2
+	# The default constructed (2,2,2)-lattice has a size of 1x1x1 centered around the origin.
+	# Scale and translate this to the desired coordinates using a transformation matrix.
+	# This translation matrix has a scaling factors on the diagonal, and translation offsets
+	# on the bottom row, applied _after_ scaling.
+	matrix = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1]]
+	for i in range(3):
+		size = max[i] - min[i]
+		if size < 0.000001:
+			size = 0.000001
+		matrix[i][i] = size
+		basePosition = -size / 2
+		matrix[3][i] = min[i] - basePosition
+	blenderLattice.transform(matrix)
+	
+	blenderLatticeObject = bpy.data.objects.new(name, blenderLattice)
+	blenderLatticeObject.parent = bpy.data.objects[objectID]
+	context.scene.objects.link(blenderLatticeObject)
+	context.scene.update()
+
+
+def createFittingBoundingBox(context, meshObject):
+	transformedMesh = meshObject.data.copy()
+	transformedMesh.transform(meshObject.matrix_world)
+	transformedMeshObject = bpy.data.objects.new('measurement', transformedMesh)
+	boundingBox = transformedMeshObject.bound_box
+	minCoordinates = tuple(min([boundingBox[j][i] for j in range(8)]) for i in range(3))
+	maxCoordinates = tuple(max([boundingBox[j][i] for j in range(8)]) for i in range(3))
+	bpy.data.objects.remove(transformedMeshObject)
+	bpy.data.meshes.remove(transformedMesh)
+	
+	createBoundingBox(context, meshObject, minCoordinates, maxCoordinates)
+
 
 def importFmdl(context, fmdl, filename, importSettings = None):
 	UV_MAP_COLOR = 'UVMap'
 	UV_MAP_NORMALS = 'normal_map'
 	
-	def addTexture(blenderMaterial, textureRole, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath):
+	def addTexture(blenderMaterial, textureRole, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath,
+				   loadTextures):
 		blenderTexture = shim.addTexture(blenderMaterial, textureRole, texture, textureIDs, uvMapColor, uvMapNormals,
-										 textureSearchPath)
+										 textureSearchPath, loadTextures)
 		if blenderTexture is not None:
 			blenderTexture.fmdl_texture_filename = texture.filename
 			blenderTexture.fmdl_texture_directory = texture.directory
@@ -54,7 +98,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 					return True
 		return False
 	
-	def importMaterials(fmdl, textureSearchPath):
+	def importMaterials(fmdl, textureSearchPath, loadTextures):
 		materialIDs = {}
 		textureIDs = {}
 		
@@ -76,10 +120,11 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			else:
 				uvMapNormals = UV_MAP_COLOR
 			
-			shim.setEmission(blenderMaterial, 1.0)
+			shim.setEmission(blenderMaterial)
 			
 			for (role, texture) in materialInstance.textures:
-				addTexture(blenderMaterial, role, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath)
+				addTexture(blenderMaterial, role, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath,
+						   loadTextures)
 		
 		return materialIDs
 	
@@ -101,7 +146,9 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 				parentBone = None
 			else:
 				parentBone = bonesByName[parentBoneName]
-				parentDistanceSquared = sum(((PesSkeletonData.bones[parentBoneName].endPosition[i] - pesBone.startPosition[i]) ** 2 for i in range(3)))
+				parentDistanceSquared = sum(
+					((PesSkeletonData.bones[parentBoneName].endPosition[i] - pesBone.startPosition[i]) ** 2 for i in
+					 range(3)))
 				if parentBoneName == pesBone.renderParent and parentDistanceSquared < 0.0000000001:
 					useConnect = True
 		else:
@@ -140,7 +187,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		shim.linkObjectToScene(blenderArmatureObject)
 		setActiveObject(context, blenderArmatureObject)
 		
-		bpy.ops.object.mode_set(context.copy(), mode = 'EDIT')
+		bpy.ops.object.mode_set(context.copy(), mode='EDIT')
 		
 		bonesByName = {}
 		for bone in fmdl.bones:
@@ -150,7 +197,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		for bone in fmdl.bones:
 			addBone(blenderArmature, bone, boneIDs, bonesByName)
 		
-		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
+		bpy.ops.object.mode_set(context.copy(), mode='OBJECT')
 		
 		return (armatureObjectID, boneIDs)
 	
@@ -158,7 +205,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		blenderArmatureObject = bpy.data.objects[armatureObjectID]
 		blenderArmature = blenderArmatureObject.data
 		
-		blenderModifier = blenderMeshObject.modifiers.new("fmdl skeleton", type = 'ARMATURE')
+		blenderModifier = blenderMeshObject.modifiers.new("fmdl skeleton", type='ARMATURE')
 		blenderModifier.object = blenderArmatureObject
 		blenderModifier.use_vertex_groups = True
 		
@@ -192,13 +239,16 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		])))
 		
 		blenderMesh.loops.add(len(mesh.faces) * 3)
-		blenderMesh.loops.foreach_set("vertex_index", tuple([vertexIndices[vertex.position] for vertex in loopVertices]))
+		blenderMesh.loops.foreach_set("vertex_index",
+									  tuple([vertexIndices[vertex.position] for vertex in loopVertices]))
 		
 		blenderMesh.polygons.add(len(mesh.faces))
 		blenderMesh.polygons.foreach_set("loop_start", tuple(range(0, 3 * len(mesh.faces), 3)))
 		blenderMesh.polygons.foreach_set("loop_total", [3 for face in mesh.faces])
 		
-		blenderMesh.update(calc_edges = True)
+		blenderMesh.update(calc_edges=True)
+		
+		blenderMaterial = bpy.data.materials[materialIDs[mesh.materialInstance]]
 		
 		if mesh.vertexFields.hasNormal:
 			def normalize(vector):
@@ -207,6 +257,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 				if size < 0.01:
 					return (x, y, z)
 				return (x / size, y / size, z / size)
+			
 			blenderMesh.normals_split_custom_set([
 				normalize((vertex.normal.x, -vertex.normal.z, vertex.normal.y)) for vertex in loopVertices
 			])
@@ -222,10 +273,10 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		if mesh.vertexFields.uvCount >= 1:
 			if 'uv_textures' in dir(blenderMesh):
-				uvTexture = blenderMesh.uv_textures.new(name = UV_MAP_COLOR)
+				uvTexture = blenderMesh.uv_textures.new(name=UV_MAP_COLOR)
 				uvLayer = blenderMesh.uv_layers[uvTexture.name]
 			else:
-				uvLayer = blenderMesh.uv_layers.new(name = UV_MAP_COLOR, do_init = False)
+				uvLayer = blenderMesh.uv_layers.new(name=UV_MAP_COLOR, do_init=False)
 				uvTexture = uvLayer
 			
 			uvLayer.data.foreach_set("uv", tuple(itertools.chain.from_iterable([
@@ -234,23 +285,33 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			uvTexture.active = True
 			uvTexture.active_clone = True
 			uvTexture.active_render = True
+			
+			image = shim.findUvMapImage(blenderMaterial, UV_MAP_COLOR, 'Base_Tex_')
+			if image is not None:
+				for i in range(len(uvTexture.data)):
+					uvTexture.data[i].image = image
 		
 		if mesh.vertexFields.uvCount >= 2 and 0 not in mesh.vertexFields.uvEqualities[1]:
 			if 'uv_textures' in dir(blenderMesh):
-				uvTexture = blenderMesh.uv_textures.new(name = UV_MAP_NORMALS)
+				uvTexture = blenderMesh.uv_textures.new(name=UV_MAP_NORMALS)
 				uvLayer = blenderMesh.uv_layers[uvTexture.name]
 			else:
-				uvLayer = blenderMesh.uv_layers.new(name = UV_MAP_NORMALS, do_init = False)
+				uvLayer = blenderMesh.uv_layers.new(name=UV_MAP_NORMALS, do_init=False)
 				uvTexture = uvLayer
 			
 			uvLayer.data.foreach_set("uv", tuple(itertools.chain.from_iterable([
 				(vertex.uv[1].u, 1.0 - vertex.uv[1].v) for vertex in loopVertices
 			])))
+			
+			image = shim.findUvMapImage(blenderMaterial, UV_MAP_NORMALS, 'NormalMap_Tex_')
+			if image is not None:
+				for i in range(len(uvTexture.data)):
+					uvTexture.data[i].image = image
 		
 		if mesh.vertexFields.uvCount >= 3:
 			raise UnsupportedFmdl("No support for fmdl files with more than 2 UV maps")
 		
-		blenderMesh.materials.append(bpy.data.materials[materialIDs[mesh.materialInstance]])
+		blenderMesh.materials.append(blenderMaterial)
 		
 		blenderMesh.fmdl_alpha_enum = mesh.alphaEnum
 		blenderMesh.fmdl_shadow_enum = mesh.shadowEnum
@@ -264,7 +325,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			for i in range(len(vertexVertices)):
 				for bone in vertexVertices[i].boneMapping:
 					weight = vertexVertices[i].boneMapping[bone]
-					blenderMeshObject.vertex_groups[vertexGroupIDs[bone]].add((i, ), weight, 'REPLACE')
+					blenderMeshObject.vertex_groups[vertexGroupIDs[bone]].add((i,), weight, 'REPLACE')
 		
 		return meshObjectID
 	
@@ -285,9 +346,9 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		return meshObjectIDs
 	
-	def addMeshGroup(context, meshGroup, meshObjectIDs):
+	def addMeshGroup(context, meshGroup, meshObjectIDs, importBoundingBoxMode):
 		if len(meshGroup.meshes) == 0 and len(meshGroup.children) == 1 and meshGroup.name == "":
-			return addMeshGroup(context, meshGroup.children[0], meshObjectIDs)
+			return addMeshGroup(context, meshGroup.children[0], meshObjectIDs, importBoundingBoxMode)
 		
 		if len(meshGroup.meshes) == 1:
 			blenderMeshGroupObject = bpy.data.objects[meshObjectIDs[meshGroup.meshes[0]]]
@@ -298,14 +359,31 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			for mesh in meshGroup.meshes:
 				bpy.data.objects[meshObjectIDs[mesh]].parent = blenderMeshGroupObject
 		
+		for mesh in meshGroup.meshes:
+			if (
+					importBoundingBoxMode == 'ALL'
+					or (importBoundingBoxMode == 'CUSTOM' and 'custom-bounding-box-meshes' in mesh.extensionHeaders)
+			):
+				minCoordinates = (
+					meshGroup.boundingBox.min.x,
+					-meshGroup.boundingBox.max.z,
+					meshGroup.boundingBox.min.y,
+				)
+				maxCoordinates = (
+					meshGroup.boundingBox.max.x,
+					-meshGroup.boundingBox.min.z,
+					meshGroup.boundingBox.max.y,
+				)
+				createBoundingBox(context, bpy.data.objects[meshObjectIDs[mesh]], minCoordinates, maxCoordinates)
+		
 		meshGroupID = blenderMeshGroupObject.name
 		for child in meshGroup.children:
-			childID = addMeshGroup(context, child, meshObjectIDs)
+			childID = addMeshGroup(context, child, meshObjectIDs, importBoundingBoxMode)
 			bpy.data.objects[childID].parent = bpy.data.objects[meshGroupID]
 		
 		return meshGroupID
 	
-	def importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename):
+	def importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename, importBoundingBoxMode):
 		rootMeshGroups = []
 		for meshGroup in fmdl.meshGroups:
 			if meshGroup.parent == None:
@@ -325,7 +403,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		rootMeshGroup.children = rootMeshGroups
 		rootMeshGroup.meshes = []
 		
-		blenderMeshGroupID = addMeshGroup(context, rootMeshGroup, meshObjectIDs)
+		blenderMeshGroupID = addMeshGroup(context, rootMeshGroup, meshObjectIDs, importBoundingBoxMode)
 		
 		if armatureObjectID != None:
 			bpy.data.objects[armatureObjectID].parent = bpy.data.objects[blenderMeshGroupID]
@@ -335,24 +413,27 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		return blenderMeshGroupID
 	
-	
-	
-	if importSettings == None:
+	if importSettings is None:
 		importSettings = ImportSettings()
 	
-	if context.active_object == None:
+	if context.active_object is None:
 		activeObjectID = None
 	else:
 		activeObjectID = bpy.data.objects.find(context.active_object.name)
 	if context.mode != 'OBJECT':
-		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
-	
-	
-	
+		bpy.ops.object.mode_set(context.copy(), mode='OBJECT')
+		
 	if importSettings.enableExtensions and importSettings.enableMeshSplitting:
 		fmdl = FmdlMeshSplitting.decodeFmdlSplitMeshes(fmdl)
 	if importSettings.enableExtensions and importSettings.enableVertexLoopPreservation:
 		fmdl = FmdlSplitVertexEncoding.decodeFmdlVertexLoopPreservation(fmdl)
+	
+	if importSettings.enableImportAllBoundingBoxes:
+		importBoundingBoxMode = 'ALL'
+	elif importSettings.enableExtensions:
+		importBoundingBoxMode = 'CUSTOM'
+	else:
+		importBoundingBoxMode = 'NONE'
 	
 	baseDir = os.path.dirname(filename)
 	textureSearchPath = []
@@ -369,7 +450,15 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	]:
 		if os.path.isdir(directory):
 			textureSearchPath.append(directory)
-	materialIDs = importMaterials(fmdl, textureSearchPath)
+
+	parts = baseDir.split(os.path.sep)
+	dismiss = []
+	while parts[-1] in ('face_fpk', '#Win'):
+		dismiss.append(parts.pop())
+	if len(dismiss) > 0:
+		textureSearchPath.insert(0, os.path.abspath(str.join(os.sep, parts)))
+
+	materialIDs = importMaterials(fmdl, textureSearchPath, importSettings.enableLoadTextures)
 	
 	if len(fmdl.bones) > 0:
 		(armatureObjectID, boneIDs) = importSkeleton(context, fmdl)
@@ -378,14 +467,12 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	
 	meshObjectIDs = importMeshes(context, fmdl, materialIDs, armatureObjectID, boneIDs)
 	
-	rootMeshGroupID = importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename)
-	
-	
+	rootMeshGroupID = importMeshTree(context, fmdl, meshObjectIDs, armatureObjectID, filename, importBoundingBoxMode)
 	
 	if context.mode != 'OBJECT':
-		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
+		bpy.ops.object.mode_set(context.copy(), mode='OBJECT')
 	if activeObjectID != None:
-		setActiveObject(context, bpy.data.objects[activeObjectID])
+		blenderArmatureObject = bpy.data.objects[activeObjectID]
 	
 	return bpy.data.objects[rootMeshGroupID]
 
@@ -397,6 +484,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		for blenderTexture in shim.iterateTextureSlots(blenderMaterial):
 			if blenderTexture not in textureFmdlObjects:
 				texture = FmdlFile.FmdlFile.Texture()
+				print(f"Exporting {blenderTexture.fmdl_texture_directory} / {blenderTexture.fmdl_texture_filename}")
 				texture.filename = blenderTexture.fmdl_texture_filename
 				texture.directory = blenderTexture.fmdl_texture_directory
 				textureFmdlObjects[blenderTexture] = texture
@@ -473,8 +561,9 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		for blenderMeshObject in blenderMeshObjects:
 			boneNames = [vertexGroup.name for vertexGroup in blenderMeshObject.vertex_groups]
 			armatures = (
-				blenderMeshArmatures[blenderMeshObject] +
-				[armature for armature in blenderArmatures if armature not in blenderMeshArmatures[blenderMeshObject]]
+					blenderMeshArmatures[blenderMeshObject] +
+					[armature for armature in blenderArmatures if
+					 armature not in blenderMeshArmatures[blenderMeshObject]]
 			)
 			for boneName in boneNames:
 				if boneName not in bones:
@@ -487,6 +576,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		orderedBones = []
 		bonesByName = {}
+		
 		def addOrderedBone(boneName):
 			if boneName in bonesByName:
 				return
@@ -501,6 +591,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			bone = exportBone(name, parent, location)
 			orderedBones.append(bone)
 			bonesByName[boneName] = bone
+		
 		for boneName in bones.keys():
 			addOrderedBone(boneName)
 		
@@ -527,8 +618,11 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		modifiedBlenderMesh.use_auto_smooth = True
 		modifiedBlenderMesh.calc_tangents(uvmap=uvLayerColor)
-		
-		
+		if uvLayerNormal is None:
+			uvLayerTangent = uvLayerColor
+		else:
+			uvLayerTangent = uvLayerNormal
+		modifiedBlenderMesh.calc_tangents(uvmap=uvLayerTangent)
 		
 		class Vertex:
 			def __init__(self):
@@ -703,7 +797,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		if len(materials) == 0:
 			raise FmdlExportError("Mesh '%s' does not have an associated material." % name)
 		if len(materials) > 1:
-			raise FmdlExportError("Mesh '%s' has multiple associated materials, including '%s' and '%s'." % (name, materials[0].name, materials[1].name))
+			raise FmdlExportError("Mesh '%s' has multiple associated materials, including '%s' and '%s'." % (
+			name, materials[0].name, materials[1].name))
 		blenderMaterial = materials[0]
 		
 		vertexFields.uvCount = 0
@@ -713,7 +808,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		if len(boneVector) > 0:
 			vertexFields.hasBoneMapping = True
 		
-		(vertices, faces) = exportMeshGeometry(blenderMeshObject, colorLayer, uvLayerColor, uvLayerNormal, boneVector, scene)
+		(vertices, faces) = exportMeshGeometry(blenderMeshObject, colorLayer, uvLayerColor, uvLayerNormal, boneVector,
+											   scene)
 		
 		mesh = FmdlFile.FmdlFile.Mesh()
 		mesh.vertices = vertices
@@ -726,6 +822,45 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		mesh.vertexFields = vertexFields
 		
 		return mesh
+	
+	def exportCustomBoundingBox(blenderMeshObject, fmdlMeshObject):
+		latticeObject = None
+		for child in blenderMeshObject.children:
+			if child.type == 'LATTICE':
+				if latticeObject is not None:
+					raise FmdlExportError(
+						"Mesh '%s' has multiple conflicting custom bounding boxes." % blenderMeshObject.name)
+				latticeObject = child
+		
+		if latticeObject is None:
+			return None
+		
+		fmdlMeshObject.extensionHeaders.add("Custom-Bounding-Box-Meshes")
+		
+		transformedLattice = latticeObject.data.copy()
+		transformedLattice.transform(latticeObject.matrix_world)
+		transformedLatticeObject = bpy.data.objects.new('measurement', transformedLattice)
+		boundingBox = transformedLatticeObject.bound_box
+		boundingBoxFmdlNotation = [(boundingBox[i][0], boundingBox[i][2], -boundingBox[i][1]) for i in range(8)]
+		minCoordinates = tuple(min([boundingBoxFmdlNotation[j][i] for j in range(8)]) for i in range(3))
+		maxCoordinates = tuple(max([boundingBoxFmdlNotation[j][i] for j in range(8)]) for i in range(3))
+		bpy.data.objects.remove(transformedLatticeObject)
+		bpy.data.lattices.remove(transformedLattice)
+		
+		return FmdlFile.FmdlFile.BoundingBox(
+			FmdlFile.FmdlFile.Vector4(
+				minCoordinates[0],
+				minCoordinates[1],
+				minCoordinates[2],
+				1.0
+			),
+			FmdlFile.FmdlFile.Vector4(
+				maxCoordinates[0],
+				maxCoordinates[1],
+				maxCoordinates[2],
+				1.0
+			)
+		)
 	
 	def determineParentBlenderObject(blenderObject, blenderRootObject, parentBlenderObjects):
 		if blenderObject in parentBlenderObjects:
@@ -765,7 +900,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			return meshGroupFmdlObjects[blenderObject]
 		
 		if parentBlenderObjects[blenderObject] != None:
-			parentMeshGroup = exportMeshGroup(parentBlenderObjects[blenderObject], parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
+			parentMeshGroup = exportMeshGroup(parentBlenderObjects[blenderObject], parentBlenderObjects, meshGroups,
+											  meshGroupFmdlObjects)
 		else:
 			parentMeshGroup = None
 		
@@ -773,10 +909,14 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 	
 	def exportMeshMeshGroup(blenderMeshObject, meshFmdlObjects, parentBlenderObjects, meshGroups, meshGroupFmdlObjects):
 		if (
-			    blenderMeshObject.name.startswith('mesh_id ')
-			and blenderMeshObject not in parentBlenderObjects.values()
+				blenderMeshObject.name.startswith('mesh_id ')
+				and blenderMeshObject not in parentBlenderObjects.values()
 		):
-			parentMeshGroup = exportMeshGroup(parentBlenderObjects[blenderMeshObject], parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
+			if parentBlenderObjects[blenderMeshObject] is not None:
+				parentMeshGroup = exportMeshGroup(parentBlenderObjects[blenderMeshObject], parentBlenderObjects,
+												  meshGroups, meshGroupFmdlObjects)
+			else:
+				parentMeshGroup = None
 			meshGroup = createMeshGroup(blenderMeshObject, '', parentMeshGroup, meshGroups, meshGroupFmdlObjects)
 		else:
 			meshGroup = exportMeshGroup(blenderMeshObject, parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
@@ -791,7 +931,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		meshGroups = []
 		meshGroupFmdlObjects = {}
 		for blenderMeshObject in blenderMeshObjects:
-			exportMeshMeshGroup(blenderMeshObject, meshFmdlObjects, parentBlenderObjects, meshGroups, meshGroupFmdlObjects)
+			exportMeshMeshGroup(blenderMeshObject, meshFmdlObjects, parentBlenderObjects, meshGroups,
+								meshGroupFmdlObjects)
 		
 		return meshGroups
 	
@@ -834,7 +975,10 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 					)
 				)
 	
-	def calculateMeshBoundingBox(mesh):
+	def calculateMeshBoundingBox(mesh, meshCustomBoundingBoxes):
+		if mesh in meshCustomBoundingBoxes:
+			return meshCustomBoundingBoxes[mesh]
+		
 		vertices = mesh.vertices
 		if len(vertices) == 0:
 			return None
@@ -854,14 +998,14 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			)
 		)
 	
-	def calculateMeshGroupBoundingBox(meshGroup):
+	def calculateMeshGroupBoundingBox(meshGroup, meshCustomBoundingBoxes):
 		boundingBoxes = []
 		for mesh in meshGroup.meshes:
-			boundingBox = calculateMeshBoundingBox(mesh)
+			boundingBox = calculateMeshBoundingBox(mesh, meshCustomBoundingBoxes)
 			if boundingBox != None:
 				boundingBoxes.append(boundingBox)
 		for child in meshGroup.children:
-			boundingBox = calculateMeshGroupBoundingBox(child)
+			boundingBox = calculateMeshGroupBoundingBox(child, meshCustomBoundingBoxes)
 			if boundingBox != None:
 				boundingBoxes.append(boundingBox)
 		
@@ -889,61 +1033,60 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		return meshGroup.boundingBox
 	
-	def calculateBoundingBoxes(meshGroups, bones, meshes):
+	def calculateBoundingBoxes(meshGroups, bones, meshes, meshCustomBoundingBoxes):
 		calculateBoneBoundingBoxes(bones, meshes)
 		
 		for meshGroup in meshGroups:
 			if meshGroup.parent == None:
-				calculateMeshGroupBoundingBox(meshGroup)
+				calculateMeshGroupBoundingBox(meshGroup, meshCustomBoundingBoxes)
 	
 	def listMeshObjects(context, rootObjectName):
 		if rootObjectName != None and rootObjectName not in context.scene.objects:
 			rootObjectName = None
 		
+		blenderMeshObjects = []
+		
+		def findMeshObjects(blenderObject, blenderMeshObjects):
+			if blenderObject.type == 'MESH' and len(blenderObject.data.polygons) > 0:
+				blenderMeshObjects.append(blenderObject)
+			childNames = [child.name for child in blenderObject.children]
+			for childName in sorted(childNames):
+				findMeshObjects(bpy.data.objects[childName], blenderMeshObjects)
+		
 		if rootObjectName == None:
 			blenderMeshObjects = []
 			blenderArmatureObjects = []
 			for object in context.scene.objects:
-				if object.type == 'MESH':
-					blenderMeshObjects.append(object)
+				if object.parent is None:
+					findMeshObjects(object, blenderMeshObjects)
+				if object.type == 'MESH' and len(object.data.polygons) > 0:
 					for modifier in object.modifiers:
 						if modifier.type == 'ARMATURE':
 							blenderArmatureObject = modifier.object
 							if blenderArmatureObject not in blenderArmatureObjects:
 								blenderArmatureObjects.append(blenderArmatureObject)
 			if (
-				len(blenderArmatureObjects) == 1 and
-				blenderArmatureObjects[0].parent != None and
-				blenderArmatureObjects[0].parent.parent == None
+					len(blenderArmatureObjects) == 1 and
+					blenderArmatureObjects[0].parent != None and
+					blenderArmatureObjects[0].parent.parent == None
 			):
 				blenderRootObject = blenderArmatureObjects[0].parent
 			else:
 				blenderRootObject = None
 		else:
 			blenderRootObject = context.scene.objects[rootObjectName]
-			blenderMeshObjects = []
-			
-			def findMeshObjects(blenderObject, blenderMeshObjects):
-				if blenderObject.type == 'MESH':
-					blenderMeshObjects.append(blenderObject)
-				for child in blenderObject.children:
-					findMeshObjects(child, blenderMeshObjects)
 			findMeshObjects(blenderRootObject, blenderMeshObjects)
 			
-			if blenderRootObject.type == 'MESH':
+			if blenderRootObject.type == 'MESH' and len(blenderRootObject.data.polygons) > 0:
 				blenderRootObject = blenderRootObject.parent
 		
 		return (blenderMeshObjects, blenderRootObject)
-	
-	
 	
 	if exportSettings == None:
 		exportSettings = ExportSettings()
 	
 	if context.mode != 'OBJECT':
-		bpy.ops.object.mode_set(context.copy(), mode = 'OBJECT')
-	
-	
+		bpy.ops.object.mode_set(context.copy(), mode='OBJECT')
 	
 	(blenderMeshObjects, blenderRootObject) = listMeshObjects(context, rootObjectName)
 	
@@ -952,15 +1095,20 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 	(bones, bonesByName) = exportBones(blenderMeshObjects)
 	
 	meshFmdlObjects = {}
+	meshCustomBoundingBoxes = {}
 	for blenderMeshObject in blenderMeshObjects:
 		mesh = exportMesh(blenderMeshObject, materialFmdlObjects, bonesByName, context.scene)
 		meshFmdlObjects[blenderMeshObject] = mesh
+		
+		boundingBox = exportCustomBoundingBox(blenderMeshObject, mesh)
+		if boundingBox is not None:
+			meshCustomBoundingBoxes[mesh] = boundingBox
 	
 	meshGroups = exportMeshGroups(blenderMeshObjects, meshFmdlObjects, blenderRootObject)
 	
 	meshes = sortMeshes(meshGroups)
 	
-	calculateBoundingBoxes(meshGroups, bones, meshes)
+	calculateBoundingBoxes(meshGroups, bones, meshes, meshCustomBoundingBoxes)
 	
 	fmdlFile = FmdlFile.FmdlFile()
 	fmdlFile.bones = bones
@@ -990,8 +1138,164 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		if len(mesh.faces) > 21845:
 			errors.append("Mesh '%s' contains %s faces out of a maximum of 21845" % (meshName, len(mesh.faces)))
 		if mesh.boneGroup is not None and len(mesh.boneGroup.bones) > 32:
-			errors.append("Mesh '%s' bone group contains %s bones out of a maximum of 32" % (meshName, len(mesh.boneGroup.bones)))
+			errors.append(
+				"Mesh '%s' bone group contains %s bones out of a maximum of 32" % (meshName, len(mesh.boneGroup.bones)))
 	if len(errors) > 0:
 		raise FmdlExportError(errors)
 	
 	return fmdlFile
+
+
+def exportSummary(context, rootObjectName):
+	def objectName(blenderObject, rootObject):
+		name = blenderObject.name
+		parent = blenderObject.parent
+		while parent is not None and parent != rootObject:
+			name = "%s/%s" % (parent.name, name)
+			parent = parent.parent
+		return name
+	
+	def splittingSummary(vertices, faces, bones):
+		output = ""
+		if vertices > FmdlMeshSplitting.VERTEX_LIMIT_HARD:
+			output += "\t\tvertices > %s\n" % FmdlMeshSplitting.VERTEX_LIMIT_HARD
+		if faces > FmdlMeshSplitting.FACE_LIMIT_HARD:
+			output += "\t\tfaces > %s\n" % FmdlMeshSplitting.FACE_LIMIT_HARD
+		if bones > FmdlMeshSplitting.BONE_LIMIT_HARD:
+			output += "\t\tbones > %s\n" % FmdlMeshSplitting.BONE_LIMIT_HARD
+		if len(output) > 0:
+			output = "\tMesh will be split to fit within fmdl limitations:\n" + output
+		return output
+	
+	def materialSummary(material):
+		output = "\tMaterial [%s]:\n" % material.name
+		output += "\t\tshader \"%s\"\n" % material.fmdl_material_shader
+		output += "\t\ttechnique \"%s\"\n" % material.fmdl_material_technique
+		for parameter in material.fmdl_material_parameters:
+			output += "\t\tparameter [%s] = [%.2f, %.2f, %.2f, %.2f]\n" % (parameter.name, *parameter.parameters)
+		for slot in material.texture_slots:
+			if slot == None:
+				continue
+			output += "\t\ttexture [%s] = \n" % slot.texture.fmdl_texture_role
+			output += "\t\t\t\"%s\"\n" % slot.texture.fmdl_texture_directory
+			output += "\t\t\t\t\"%s\"\n" % slot.texture.fmdl_texture_filename
+		return output
+	
+	def skeletonSummary(bones):
+		bodyPartAllBones = {}
+		for pesVersion in PesSkeletonData.skeletonBones:
+			for bodyPart in PesSkeletonData.skeletonBones[pesVersion]:
+				if bodyPart not in bodyPartAllBones:
+					bodyPartAllBones[bodyPart] = set()
+				bodyPartAllBones[bodyPart].update(PesSkeletonData.skeletonBones[pesVersion][bodyPart])
+		bodyPartUniqueBones = {}
+		for bodyPart in bodyPartAllBones:
+			bodyPartUniqueBones[bodyPart] = bodyPartAllBones[bodyPart].copy()
+			for otherBodyPart in bodyPartAllBones:
+				if otherBodyPart != bodyPart:
+					bodyPartUniqueBones[bodyPart].difference_update(bodyPartAllBones[otherBodyPart])
+		
+		bones = sorted(bones)
+		requiredBodyParts = set()
+		for bone in bones:
+			for bodyPart in bodyPartUniqueBones:
+				if bone in bodyPartUniqueBones[bodyPart]:
+					requiredBodyParts.add(bodyPart)
+		
+		bodyPartVersions = {}
+		unknownBones = []
+		for bone in bones:
+			selectedBodyPart = None
+			for bodyPart in requiredBodyParts:
+				if bone in bodyPartAllBones[bodyPart]:
+					selectedBodyPart = bodyPart
+					break
+			if selectedBodyPart is None:
+				for bodyPart in sorted(list(bodyPartAllBones.keys()), reverse=True):
+					if bone in bodyPartAllBones[bodyPart]:
+						selectedBodyPart = bodyPart
+						break
+			
+			if selectedBodyPart is None:
+				unknownBones.append(bone)
+			else:
+				for pesVersion in PesSkeletonData.skeletonBones:
+					if bone in PesSkeletonData.skeletonBones[pesVersion][selectedBodyPart]:
+						minimumPesVersion = pesVersion
+						break
+				# minimumPesVersion MUST be set at this point
+				if selectedBodyPart not in bodyPartVersions or bodyPartVersions[selectedBodyPart] < minimumPesVersion:
+					bodyPartVersions[selectedBodyPart] = minimumPesVersion
+		
+		output = ""
+		if len(bodyPartVersions) == 0 and len(unknownBones) == 0:
+			output += "\tSkeleton: none\n"
+		elif len(bodyPartVersions) == 1 and len(unknownBones) == 0:
+			bodyPart = list(bodyPartVersions.keys())[0]
+			output += "\tSkeleton: %s %s\n" % (bodyPartVersions[bodyPart], bodyPart)
+		else:
+			output += "\tSkeleton:\n"
+			for bodyPart in sorted(list(bodyPartVersions.keys())):
+				output += "\t\tFound bones for %s %s\n" % (bodyPartVersions[bodyPart], bodyPart)
+			if len(unknownBones) > 0:
+				chunks = [[]]
+				for bone in unknownBones:
+					if len(chunks[-1]) >= 6:
+						chunks.append([])
+					chunks[-1].append('"%s"' % bone)
+				output += "\t\tFound unknown bones:\n"
+				for boneChunk in chunks:
+					output += "\t\t\t%s\n" % ", ".join(boneChunk)
+		return output
+	
+	def meshSummary(blenderMeshObject, rootObject):
+		mesh = blenderMeshObject.data
+		lattices = [child for child in blenderMeshObject.children if child.type == 'LATTICE']
+		bones = [name for name in blenderMeshObject.vertex_groups.keys()]
+		
+		output = "Mesh [%s]\n" % objectName(blenderMeshObject, rootObject)
+		output += "\tVertices: %s\n" % len(mesh.vertices)
+		output += "\tFaces: %s\n" % len(mesh.polygons)
+		output += "\tBones: %s\n" % len(bones)
+		output += "\tAlpha Enum: %s\n" % mesh.fmdl_alpha_enum
+		output += "\tShadow Enum: %s\n" % mesh.fmdl_shadow_enum
+		if len(mesh.vertex_colors) == 1:
+			output += "\tMesh has vertex color information\n"
+		elif len(mesh.vertex_colors) > 1:
+			output += "\tMesh has inconsistent vertex color information\n"
+		if len(lattices) == 1:
+			output += "\tMesh has custom bounding box\n"
+		elif len(lattices) > 1:
+			output += "\tMesh has inconsistent bounding box\n"
+		output += splittingSummary(len(mesh.vertices), len(mesh.polygons), len(bones))
+		if len(mesh.materials) == 0:
+			output += "\tMaterial: none\n"
+		elif len(mesh.materials) == 1:
+			output += materialSummary(mesh.materials[0])
+		else:
+			output += "\tMaterial: inconsistent\n"
+		output += skeletonSummary(bones)
+		return output
+	
+	meshObjects = {}
+	if rootObjectName is None:
+		rootObject = None
+		output = "Export summary\n"
+		for blenderObject in context.scene.objects:
+			if blenderObject.type == 'MESH' and len(blenderObject.data.polygons) > 0:
+				meshObjects[objectName(blenderObject, rootObject)] = blenderObject
+	else:
+		rootObject = bpy.data.objects[rootObjectName]
+		output = "Export summary for %s\n" % objectName(rootObject, None)
+		
+		def findMeshObjects(blenderObject):
+			if blenderObject.type == 'MESH' and len(blenderObject.data.polygons) > 0:
+				meshObjects[objectName(blenderObject, rootObject)] = blenderObject
+			for child in blenderObject.children:
+				findMeshObjects(child)
+		
+		findMeshObjects(rootObject)
+	output += "------------------------------\n"
+	for key in sorted(list(meshObjects.keys())):
+		output += meshSummary(meshObjects[key], rootObject)
+	return output

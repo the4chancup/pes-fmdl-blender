@@ -87,15 +87,13 @@ def ftexToDds(ftexFilename, ddsFilename):
 	if ftexMipmapCount == 0:
 		return False
 	
-	
-	
 	ddsFlags = (
-		  0x1        # capabilities
-		| 0x2        # height
-		| 0x4        # width
-		| 0x1000     # pixel format
+			0x1  # capabilities
+			| 0x2  # height
+			| 0x4  # width
+			| 0x1000  # pixel format
 	)
-	ddsCapabilities1 = 0x1000 # texture
+	ddsCapabilities1 = 0x1000  # texture
 	ddsCapabilities2 = 0
 	
 	if (ftexTextureType & 4) != 0:
@@ -104,34 +102,34 @@ def ftexToDds(ftexFilename, ddsFilename):
 			return False
 		imageCount = 6
 		ddsDepth = 1
-		ddsCapabilities1 |= 0x8    # complex
-		ddsCapabilities2 |= 0xfe00 # cube map with six faces
+		ddsCapabilities1 |= 0x8  # complex
+		ddsCapabilities2 |= 0xfe00  # cube map with six faces
 		
-		ddsExtensionDimension = 3 # 2D
-		ddsExtensionFlags = 0x4 # cube map
+		ddsExtensionDimension = 3  # 2D
+		ddsExtensionFlags = 0x4  # cube map
 	elif ftexDepth > 1:
 		# Volume texture
 		imageCount = 1
 		ddsDepth = ftexDepth
-		ddsFlags |= 0x800000      # depth
-		ddsCapabilities2 |= 0x200000 # volume texture
+		ddsFlags |= 0x800000  # depth
+		ddsCapabilities2 |= 0x200000  # volume texture
 		
-		ddsExtensionDimension = 4 # 3D
+		ddsExtensionDimension = 4  # 3D
 		ddsExtensionFlags = 0
 	else:
 		# Regular 2D texture
 		imageCount = 1
 		ddsDepth = 1
 		
-		ddsExtensionDimension = 3 # 2D
+		ddsExtensionDimension = 3  # 2D
 		ddsExtensionFlags = 0
 	
 	if ftexMipmapCount > 1:
 		ddsMipmapCount = ftexMipmapCount
 		mipmapCount = ftexMipmapCount
-		ddsFlags |= 0x20000          # mipmapCount
-		ddsCapabilities1 |= 0x8      # complex
-		ddsCapabilities1 |= 0x400000 # mipmap
+		ddsFlags |= 0x20000  # mipmapCount
+		ddsCapabilities1 |= 0x8  # complex
+		ddsCapabilities1 |= 0x400000  # mipmap
 	else:
 		ddsMipmapCount = 0
 		mipmapCount = 1
@@ -196,10 +194,10 @@ def ftexToDds(ftexFilename, ddsFilename):
 	ddsPitch = None
 	if ftexPixelFormat == 0:
 		ddsPitchOrLinearSize = 4 * ftexWidth
-		ddsFlags |= 0x8 # pitch
+		ddsFlags |= 0x8  # pitch
 		useExtensionHeader = False
 		
-		ddsFormatFlags = 0x41 # uncompressed rgba
+		ddsFormatFlags = 0x41  # uncompressed rgba
 		ddsFourCC = b'\0\0\0\0'
 		ddsRgbBitCount = 32
 		ddsRBitMask = 0x00ff0000
@@ -208,9 +206,9 @@ def ftexToDds(ftexFilename, ddsFilename):
 		ddsABitMask = 0xff000000
 	else:
 		ddsPitchOrLinearSize = len(frames[0])
-		ddsFlags |= 0x80000 # linear size
+		ddsFlags |= 0x80000  # linear size
 		
-		ddsFormatFlags = 0x4 # compressed
+		ddsFormatFlags = 0x4  # compressed
 		ddsRgbBitCount = 0
 		ddsRBitMask = 0
 		ddsGBitMask = 0
@@ -258,37 +256,37 @@ def ftexToDds(ftexFilename, ddsFilename):
 	outputStream = open(ddsFilename, 'wb')
 	
 	outputStream.write(pack('< 4s 7I 44x 2I 4s 5I 2I 12x',
-		b'DDS ',
-		
-		124, # header size
-		ddsFlags,
-		ftexHeight,
-		ftexWidth,
-		ddsPitchOrLinearSize,
-		ddsDepth,
-		ddsMipmapCount,
-		
-		32, # substructure size
-		ddsFormatFlags,
-		ddsFourCC,
-		ddsRgbBitCount,
-		ddsRBitMask,
-		ddsGBitMask,
-		ddsBBitMask,
-		ddsABitMask,
-		
-		ddsCapabilities1,
-		ddsCapabilities2,
-	))
+							b'DDS ',
+	
+							124,  # header size
+							ddsFlags,
+							ftexHeight,
+							ftexWidth,
+							ddsPitchOrLinearSize,
+							ddsDepth,
+							ddsMipmapCount,
+	
+							32,  # substructure size
+							ddsFormatFlags,
+							ddsFourCC,
+							ddsRgbBitCount,
+							ddsRBitMask,
+							ddsGBitMask,
+							ddsBBitMask,
+							ddsABitMask,
+	
+							ddsCapabilities1,
+							ddsCapabilities2,
+							))
 	
 	if useExtensionHeader:
 		outputStream.write(pack('< 5I',
-			ddsExtensionFormat,
-			ddsExtensionDimension,
-			ddsExtensionFlags,
-			1, # array size
-			0, # flags
-		))
+								ddsExtensionFormat,
+								ddsExtensionDimension,
+								ddsExtensionFlags,
+								1,  # array size
+								0,  # flags
+								))
 	
 	for frame in frames:
 		outputStream.write(frame)
@@ -297,24 +295,52 @@ def ftexToDds(ftexFilename, ddsFilename):
 	
 	return True
 
+
+def exec_tool(*args):
+	import subprocess
+	
+	path, *arguments = args
+	# path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', path))
+	escaped_args = [path, *arguments]
+	print("\t*** Executing tool: ", *escaped_args)
+	try:
+		subprocess.run(escaped_args)
+		return True
+	except subprocess.CalledProcessError as ex:
+		print("Process ended with error:", ex.returncode, ex.output)
+		return False
+	except PermissionError as pex:
+		print("There was a permissions error: ", pex.filename, pex.args, pex.errno, pex.strerror)
+		return False
+	except FileNotFoundError as fex:
+		print("The file to execute was not found: ", fex.filename, fex.errno, fex.strerror)
+		return False
+
+
 def blenderImageLoadFtex(blenderImage, tempDir):
 	originalFilename = blenderImage.filepath
-	pos = originalFilename.replace("\\", "/").rfind('/')
-	if pos == -1:
-		baseName = originalFilename
-	else:
-		baseName = originalFilename[pos + 1:]
+	(baseName, _) = os.path.splitext(originalFilename)
+	ddsFile = baseName + '.dds'
+	if not os.path.isfile(ddsFile):
+		if not ftexToDds(originalFilename, ddsFile):
+			os.remove(ddsFile)
+			return False
+	# we have a dds file here
+	originalFilenameAsTga = baseName + '.tga'
+	outDir = os.path.dirname(originalFilenameAsTga)
+
+	if not os.path.isfile(originalFilenameAsTga):
+		# this will create a temporary tga file with the name above, hopefully
+		exec_tool(r'C:\gamedev\pes\PesFacemod\Tools\texconv.exe', '-m', '1', '-f', 'R8G8B8A8_UNORM', '-ft', 'tga', '-l', ddsFile, '-o', outDir)
+
+	# Here we do have a tga file
+	blenderImage.filepath = originalFilenameAsTga
 	
-	(ddsFileDescriptor, ddsFile) = tempfile.mkstemp(suffix = '.dds', prefix = baseName + '-', dir = tempDir)
-	os.close(ddsFileDescriptor)
-	if not ftexToDds(originalFilename, ddsFile):
-		os.remove(ddsFile)
-		return False
-	
-	blenderImage.filepath = ddsFile
 	# Read from the pixels buffer to trigger a load operation
-	dummy = blenderImage.pixels[0]
-	blenderImage.filepath_raw = originalFilename
+	_ = blenderImage.pixels[0]
+	# blenderImage.filepath_raw = originalFilename
+	blenderImage.filepath_raw = originalFilenameAsTga
 	
-	os.remove(ddsFile)
+	# os.remove(ddsFile)
+	# os.remove(tempTgaFile)
 	return True

@@ -1,3 +1,29 @@
+0.5.2  2020-10-05
+
+	* Fixed exporting of vertices with total bone weight over 1.0.
+
+0.5.1  2020-10-05
+
+	* Meshes are now exported in the order they appear in the outliner.
+	* Meshes are now rendered in blender in the order they appear in the outliner.
+	* Improved imported material settings for transparent textures.
+	* Added bone information and mesh splitting information to export summary.
+
+0.5.0  2020-10-04
+
+	* Added texture loading for Texture render mode.
+	* Added functionality to create PES skeletons from scratch.
+	* Added export summary functionality.
+	* Added custom bounding box support.
+	* Added setting to disable texture loading.
+	* Enabled loaded texture alpha interpretation unconditionally.
+	* Improved export UV map detection.
+	* Improved exporting vertex tangents on meshes with separate normal UV map.
+	* Fixed importing of textures that fail to load.
+	* Fixed importing of textures with missing filenames.
+	* Fixed exporting of empty meshes.
+	* Fixed exporting of nameless meshes without a parent.
+
 0.4.8  2020-07-17
 
 	* Fixed a bug exporting bounding boxes.

@@ -3,11 +3,8 @@ TODO:
 Bugs:
 
 Features:
-- custom bounding-box editing
-- skeleton import UI
 - material import UI
 
 Maybe at some point:
-- export summary infobox
 - blender 2.81 support
 - custom bones / hand bones

@@ -1291,21 +1291,20 @@ class FMDL_Texture_Panel(bpy.types.Panel):
 	bl_label = "FMDL Texture Settings"
 	bl_space_type = "PROPERTIES"
 	bl_region_type = "WINDOW"
-	bl_context = "texture"
-	
-	@classmethod
-	def poll(cls, context):
-		return context.texture != None
+	bl_context = "object"
 	
 	def draw(self, context):
-		texture = context.texture
-		if 'fmdl_texture_role' in dir(texture):
-			mainColumn = self.layout.column()
-			mainColumn.prop(texture, "fmdl_texture_role", text = "Role")
-			mainColumn.prop(texture, "fmdl_texture_filename", text = "Filename")
-			mainColumn.prop(texture, "fmdl_texture_directory", text = "Directory")
-
-
+		for o in context.selected_objects:
+			for m in o.material_slots:
+				if m.material.node_tree is not None:
+					for n in m.material.node_tree.nodes:
+						if n.type == 'TEX_IMAGE':
+							if 'fmdl_texture_role' in dir(n):
+								col = self.layout.column()
+								col.label(text=f"{n.image.name}")
+								col.row().prop(n, "fmdl_texture_role", text="Role")
+								col.row().prop(n, "fmdl_texture_filename", text="Filename")
+								col.row().prop(n, "fmdl_texture_directory", text="Directory")
 
 classes = [
 	FMDL_Util_window_set_screen,

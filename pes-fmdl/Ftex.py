@@ -317,7 +317,7 @@ def exec_tool(*args):
 		return False
 
 
-def blenderImageLoadFtex(blenderImage, tempDir):
+def blenderImageLoadFtex(blenderImage, tempDir, texconv_path):
 	originalFilename = blenderImage.filepath
 	(baseName, _) = os.path.splitext(originalFilename)
 	ddsFile = baseName + '.dds'
@@ -331,7 +331,7 @@ def blenderImageLoadFtex(blenderImage, tempDir):
 
 	if not os.path.isfile(originalFilenameAsTga):
 		# this will create a temporary tga file with the name above, hopefully
-		exec_tool(r'C:\gamedev\pes\PesFacemod\Tools\texconv.exe', '-m', '1', '-f', 'R8G8B8A8_UNORM', '-ft', 'tga', '-l', ddsFile, '-o', outDir)
+		exec_tool(texconv_path, '-m', '1', '-f', 'R8G8B8A8_UNORM', '-ft', 'tga', '-l', ddsFile, '-o', outDir)
 
 	# Here we do have a tga file
 	blenderImage.filepath = originalFilenameAsTga

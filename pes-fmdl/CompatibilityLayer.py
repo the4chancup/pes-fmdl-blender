@@ -147,11 +147,11 @@ class CompatibilityLayer27(CompatibilityLayerBase):
 
 			if loadTextures:
 				filename = cls.findTexture(texture, textureSearchPath)
-				if filename == None:
+				if filename is None:
 					blenderImage.filepath = texture.directory + texture.filename
 				elif filename.lower().endswith('.ftex'):
 					blenderImage.filepath = filename
-					Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir)
+					Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir, bpy.context.preferences.addons[__package__].preferences.texconv_path)
 				else:
 					blenderImage.filepath = filename
 					blenderImage.reload()
@@ -408,7 +408,7 @@ class CompatibilityLayer29(CompatibilityLayerBase):
 				blenderImage.filepath = texture.directory + texture.filename
 			elif filename.lower().endswith('.ftex'):
 				blenderImage.filepath = filename
-				Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir)
+				Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir, bpy.context.preferences.addons[__package__].preferences.texconv_path)
 			else:
 				blenderImage.filepath = filename
 				blenderImage.reload()

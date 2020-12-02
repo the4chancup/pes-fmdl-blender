@@ -1,5 +1,5 @@
 import bpy
-
+from .Preferences import PesFmdlPreferences
 
 class FMDL_MaterialParameter(bpy.types.PropertyGroup):
 	name = bpy.props.StringProperty(name = "Parameter Name")
@@ -13,6 +13,7 @@ class Properties:
 	@staticmethod
 	def Register():
 		bpy.utils.register_class(FMDL_MaterialParameter)
+		bpy.utils.register_class(PesFmdlPreferences)
 		
 		bpy.types.Mesh.fmdl_alpha_enum = bpy.props.IntProperty(name = "Alpha Enum", default = 0, min = 0, max = 255)
 		bpy.types.Mesh.fmdl_shadow_enum = bpy.props.IntProperty(name = "Shadow Enum", default = 0, min = 0, max = 255)
@@ -37,4 +38,5 @@ class Properties:
 	
 	@staticmethod
 	def Unregister():
+		bpy.utils.unregister_class(PesFmdlPreferences)
 		bpy.utils.unregister_class(FMDL_MaterialParameter)

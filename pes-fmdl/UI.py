@@ -1281,7 +1281,7 @@ class FMDL_Texture_Load_Ftex(bpy.types.Operator):
 		# Avoids a blender bug in which an invalid image can't be replaced with a valid one
 		context.texture.image_user.use_auto_refresh = context.texture.image_user.use_auto_refresh
 		
-		Ftex.blenderImageLoadFtex(context.texture.image, bpy.app.tempdir)
+		Ftex.blenderImageLoadFtex(context.texture.image, bpy.app.tempdir, bpy.context.preferences.addons[__package__].preferences.texconv_path)
 		return {'FINISHED'}
 
 def FMDL_Texture_Load_Ftex_Button(self, context):

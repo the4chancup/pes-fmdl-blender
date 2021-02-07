@@ -96,7 +96,6 @@ def FMDL_Util_TrackChanges(scene):
 	# These different jobs are merged into this single handler for efficiency,
 	# as this handler is called very often and needs to be tight.
 	#
-	#
 	global inActiveUpdate
 	if bpy.context.mode != 'OBJECT':
 		return
@@ -115,6 +114,22 @@ def FMDL_Util_TrackChanges(scene):
 				vertexGroupSummaryRemove(object.name)
 			else:
 				meshObjectList.append(object.name)
+			
+			if object.data is None:
+				continue
+			for material in object.data.materials:
+				if material is None:
+					continue
+				if material.is_updated or material.is_updated_data:
+					objectChanged = True
+				for texture_slot in material.texture_slots:
+					if texture_slot is None:
+						continue
+					if texture_slot.texture is None:
+						continue
+					if texture_slot.texture.is_updated or texture_slot.texture.is_updated_data:
+						objectChanged = True
+			
 	
 	global latestObjectTree
 	objectTreeTuple = tuple(objectTree)

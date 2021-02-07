@@ -82,9 +82,12 @@ def synchronizeMeshOrder(scene):
 	for objectName in sorted(rootObjectNames):
 		findMeshObjects(bpy.data.objects[objectName])
 	
+	activeName = scene.objects.active.name if scene.objects.active is not None else None
 	for objectName in reversed(meshObjects):
 		scene.objects.unlink(bpy.data.objects[objectName])
 		scene.objects.link(bpy.data.objects[objectName])
+	if activeName is not None:
+		scene.objects.active = bpy.data.objects[activeName]
 
 @bpy.app.handlers.persistent
 def FMDL_Util_TrackChanges(scene):

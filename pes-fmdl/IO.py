@@ -89,10 +89,13 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		filenames = [filename]
 		position = filename.rfind('.')
 		if position >= 0:
-			for extension in ['dds', 'tga', 'ftex']:
-				modifiedFilename = filename[:position + 1] + extension
-				if modifiedFilename not in filenames:
-					filenames.append(modifiedFilename)
+			baseFilename = filename[:position]
+		else:
+			baseFilename = filename
+		for extension in ['dds', 'tga', 'ftex']:
+			modifiedFilename = baseFilename + '.' + extension
+			if modifiedFilename not in filenames:
+				filenames.append(modifiedFilename)
 		
 		for searchDirectory in textureSearchPath:
 			for suffix in directorySuffixes:

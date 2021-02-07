@@ -86,16 +86,13 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		directory = textureFilenameComponents[:-1]
 		directorySuffixes = [directory[i:] for i in range(len(directory) + 1)]
 		
-		if filename == 'kit.dds':
-			filenames = []
-		else:
-			filenames = [filename]
-			position = filename.rfind('.')
-			if position >= 0:
-				for extension in ['dds', 'tga', 'ftex']:
-					modifiedFilename = filename[:position + 1] + extension
-					if modifiedFilename not in filenames:
-						filenames.append(modifiedFilename)
+		filenames = [filename]
+		position = filename.rfind('.')
+		if position >= 0:
+			for extension in ['dds', 'tga', 'ftex']:
+				modifiedFilename = filename[:position + 1] + extension
+				if modifiedFilename not in filenames:
+					filenames.append(modifiedFilename)
 		
 		for searchDirectory in textureSearchPath:
 			for suffix in directorySuffixes:
@@ -103,21 +100,6 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 					fullFilename = os.path.join(searchDirectory, *suffix, filename)
 					if os.path.isfile(fullFilename):
 						return fullFilename
-				
-				if len(filenames) == 0:
-					directory = os.path.join(searchDirectory, *suffix)
-					if not os.path.isdir(directory):
-						continue
-					
-					try:
-						entries = os.listdir(directory)
-					except:
-						continue
-					for entry in entries:
-						if re.match('^u[0-9]{4}p1\.dds$', entry, flags = re.IGNORECASE):
-							fullFilename = os.path.join(directory, entry)
-							if os.path.isfile(fullFilename):
-								return fullFilename
 		
 		return None
 	

@@ -1793,10 +1793,10 @@ class FmdlFile:
 				addHeader(key, extensionHeaders[key])
 		for i in range(len(fmdlFile.meshes)):
 			for key in fmdlFile.meshes[i].extensionHeaders:
-				addHeader(key, str(i))
+				addHeader(key, [str(i)])
 		for i in range(len(fmdlFile.meshGroups)):
 			for key in fmdlFile.meshGroups[i].extensionHeaders:
-				addHeader(key, str(i))
+				addHeader(key, [str(i)])
 		
 		if len(otherHeaders) == 0 and len(flattenedExtensions) == 0:
 			return

@@ -615,48 +615,18 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		return bone
 	
 	def exportBones(blenderMeshObjects):
-		def findBone(boneName, armatures):
+		def findBone(boneName):
 			if boneName in PesSkeletonData.bones:
 				pesBone = PesSkeletonData.bones[boneName]
 				return (boneName, pesBone.sklParent, pesBone.startPosition)
-			
-			for armature in armatures:
-				for blenderBone in armature.bones:
-					if blenderBone.name == boneName:
-						if blenderBone.parent is None:
-							parentName = None
-						else:
-							parentName = blenderBone.parent.name
-						(headX, headY, headZ) = blenderBone.head_local
-						return (boneName, parentName, (headX, headZ, -headY))
-			
 			return (boneName, None, (0, 0, 0))
-		
-		blenderArmatures = []
-		blenderMeshArmatures = {}
-		for blenderMeshObject in blenderMeshObjects:
-			blenderMeshArmatures[blenderMeshObject] = []
-			for modifier in blenderMeshObject.modifiers:
-				if modifier.type == 'ARMATURE':
-					blenderArmature = modifier.object.data
-					blenderArmatures.append(blenderArmature)
-					blenderMeshArmatures[blenderMeshObject].append(blenderArmature)
 		
 		bones = {}
 		for blenderMeshObject in blenderMeshObjects:
 			boneNames = [vertexGroup.name for vertexGroup in blenderMeshObject.vertex_groups]
-			armatures = (
-				blenderMeshArmatures[blenderMeshObject] +
-				[armature for armature in blenderArmatures if armature not in blenderMeshArmatures[blenderMeshObject]]
-			)
 			for boneName in boneNames:
 				if boneName not in bones:
-					bones[boneName] = findBone(boneName, armatures)
-		for blenderArmature in blenderArmatures:
-			for blenderBone in blenderArmature.bones:
-				boneName = blenderBone.name
-				if boneName not in bones:
-					bones[boneName] = findBone(boneName, [blenderArmature])
+					bones[boneName] = findBone(boneName)
 		
 		orderedBones = []
 		bonesByName = {}
@@ -795,6 +765,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 				-blenderVertex.co.y,
 			)
 			for group in blenderVertex.groups:
+				if group.group >= len(boneVector):
+					continue
 				vertex.boneMapping[boneVector[group.group]] = group.weight
 			vertices.append(vertex)
 		
@@ -1187,12 +1159,9 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			for object in context.scene.objects:
 				if object.parent is None:
 					findMeshObjects(object, blenderMeshObjects)
-				if object.type == 'MESH' and len(object.data.polygons) > 0:
-					for modifier in object.modifiers:
-						if modifier.type == 'ARMATURE':
-							blenderArmatureObject = modifier.object
-							if blenderArmatureObject not in blenderArmatureObjects:
-								blenderArmatureObjects.append(blenderArmatureObject)
+				if object.type == 'ARMATURE':
+					if object not in blenderArmatureObjects:
+						blenderArmatureObjects.append(object)
 			if (
 				len(blenderArmatureObjects) == 1 and
 				blenderArmatureObjects[0].parent != None and

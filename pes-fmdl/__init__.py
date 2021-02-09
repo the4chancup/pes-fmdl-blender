@@ -18,12 +18,11 @@ class FMDL_MaterialParameter(bpy.types.PropertyGroup):
 def register():
 	bpy.utils.register_class(FMDL_MaterialParameter)
 	
-	bpy.types.Mesh.fmdl_alpha_enum = bpy.props.IntProperty(name = "Alpha Enum", default = 0, min = 0, max = 255)
-	bpy.types.Mesh.fmdl_shadow_enum = bpy.props.IntProperty(name = "Shadow Enum", default = 0, min = 0, max = 255)
-	
 	bpy.types.Material.fmdl_material_shader = bpy.props.StringProperty(name = "Shader")
 	bpy.types.Material.fmdl_material_technique = bpy.props.StringProperty(name = "Technique")
 	bpy.types.Material.fmdl_material_parameters = bpy.props.CollectionProperty(name = "Material Parameters", type = FMDL_MaterialParameter)
+	bpy.types.Material.fmdl_alpha_enum = bpy.props.IntProperty(name = "Alpha Enum", default = 0, min = 0, max = 255)
+	bpy.types.Material.fmdl_shadow_enum = bpy.props.IntProperty(name = "Shadow Enum", default = 0, min = 0, max = 255)
 	
 	bpy.types.Texture.fmdl_texture_filename = bpy.props.StringProperty(name = "Texture Filename")
 	bpy.types.Texture.fmdl_texture_directory = bpy.props.StringProperty(name = "Texture Directory")

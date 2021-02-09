@@ -1121,23 +1121,6 @@ class FMDL_Mesh_BoneGroup_Panel(bpy.types.Panel):
 		weightsRow.enabled = computeDetails
 		weightsRow.prop(mesh, 'fmdl_show_vertex_group_weights')
 
-class FMDL_Mesh_Panel(bpy.types.Panel):
-	bl_label = "FMDL Mesh Settings"
-	bl_space_type = "PROPERTIES"
-	bl_region_type = "WINDOW"
-	bl_context = "data"
-	
-	@classmethod
-	def poll(cls, context):
-		return context.mesh != None
-	
-	def draw(self, context):
-		mesh = context.mesh
-		
-		mainColumn = self.layout.column()
-		mainColumn.prop(mesh, "fmdl_shadow_enum")
-		mainColumn.prop(mesh, "fmdl_alpha_enum")
-
 
 
 class FMDL_Material_Parameter_List_Add(bpy.types.Operator):
@@ -1231,11 +1214,21 @@ class FMDL_Material_Panel(bpy.types.Panel):
 		material = context.material
 		
 		mainColumn = self.layout.column(align = True)
-		mainColumn.prop(material, "fmdl_material_shader")
-		mainColumn.prop(material, "fmdl_material_technique")
+		row = mainColumn.row().split(0.33, align = True)
+		row.label("Shader:")
+		row.prop(material, "fmdl_material_shader", text = "")
+		row = mainColumn.row().split(0.33, align = True)
+		row.label("Technique:")
+		row.prop(material, "fmdl_material_technique", text = "")
+		row = mainColumn.row().split(0.33, align = True)
+		row.label("Alpha Enum:")
+		row.prop(material, "fmdl_alpha_enum", text = "")
+		row = mainColumn.row().split(0.33, align = True)
+		row.label("Shadow Enum:")
+		row.prop(material, "fmdl_shadow_enum", text = "")
 		
 		mainColumn.separator()
-		mainColumn.label("Material Parameters")
+		mainColumn.label("Material Parameters:")
 		parameterListRow = mainColumn.row()
 		parameterListRow.template_list(
 			FMDL_Material_Parameter_Name_List.__name__,
@@ -1337,7 +1330,6 @@ classes = [
 	FMDL_Mesh_BoneGroup_CopyFromSelected,
 	FMDL_Mesh_BoneGroup_Specials,
 	FMDL_Mesh_BoneGroup_Panel,
-	FMDL_Mesh_Panel,
 	
 	FMDL_Material_Parameter_List_Add,
 	FMDL_Material_Parameter_List_Remove,

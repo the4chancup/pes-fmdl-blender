@@ -324,8 +324,8 @@ class FmdlFile:
 			self.faces = []
 			self.boneGroup = None
 			self.materialInstance = None
-			self.alphaEnum = None
-			self.shadowEnum = None
+			self.alphaFlags = None
+			self.shadowFlags = None
 			self.vertexFields = None
 			# extension fields
 			self.extensionHeaders = set()
@@ -610,8 +610,8 @@ class FmdlFile:
 		meshes = []
 		for definition in fmdl.segment0Blocks[3]:
 			(
-				alphaEnum,
-				shadowEnum,
+				alphaFlags,
+				shadowFlags,
 				materialInstanceID,
 				boneGroupID,
 				meshFormatID,
@@ -704,8 +704,8 @@ class FmdlFile:
 			mesh.faces = faces
 			mesh.boneGroup = boneGroup
 			mesh.materialInstance = materialInstance
-			mesh.alphaEnum = alphaEnum
-			mesh.shadowEnum = shadowEnum
+			mesh.alphaFlags = alphaFlags
+			mesh.shadowFlags = shadowFlags
 			mesh.vertexFields = vertexFields
 			mesh.vertexEncoding = vertexEncodings
 			mesh.extensionHeaders = FmdlFile.parseObjectExtensionHeaders(extensionHeaders, FmdlFile.Mesh.extensionHeaders, len(meshes))
@@ -1383,8 +1383,8 @@ class FmdlFile:
 		firstFaceVertexID = FmdlFile.addFaces(fmdl, mesh.faces, faceBuffer, vertexIndices)
 		
 		return FmdlFile.addSegment0Block(fmdl, 3, pack('< BB 2x HHHH 4x IIQ 16x',
-			mesh.alphaEnum,
-			mesh.shadowEnum,
+			mesh.alphaFlags,
+			mesh.shadowFlags,
 			materialInstanceID,
 			boneGroupID,
 			meshFormatAssignmentID,

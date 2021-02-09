@@ -154,8 +154,8 @@ def encodeMeshVertexLoopPreservation(mesh):
 	output = FmdlFile.FmdlFile.Mesh()
 	output.boneGroup = mesh.boneGroup
 	output.materialInstance = mesh.materialInstance
-	output.alphaEnum = mesh.alphaEnum
-	output.shadowEnum = mesh.shadowEnum
+	output.alphaFlags = mesh.alphaFlags
+	output.shadowFlags = mesh.shadowFlags
 	output.vertexFields = mesh.vertexFields
 	output.vertices = [encodedVertex.vertex for encodedVertex in encodedVertices]
 	output.faces = replaceFaceVertices(mesh.faces, replacedVertices)
@@ -250,8 +250,8 @@ def decodeMeshVertexLoopPreservation(mesh):
 	output = FmdlFile.FmdlFile.Mesh()
 	output.boneGroup = mesh.boneGroup
 	output.materialInstance = mesh.materialInstance
-	output.alphaEnum = mesh.alphaEnum
-	output.shadowEnum = mesh.shadowEnum
+	output.alphaFlags = mesh.alphaFlags
+	output.shadowFlags = mesh.shadowFlags
 	output.vertexFields = mesh.vertexFields
 	output.vertices = vertices
 	output.faces = replaceFaceVertices(mesh.faces, replacedVertices)

@@ -1123,6 +1123,52 @@ class FMDL_Mesh_BoneGroup_Panel(bpy.types.Panel):
 
 
 
+def FMDL_Material_Flags_twosided_get(material):
+	return material.fmdl_alpha_flags & 32 > 0
+
+def FMDL_Material_Flags_twosided_set(material, enabled):
+	if enabled:
+		material.fmdl_alpha_flags |= 32
+	else:
+		material.fmdl_alpha_flags &= ~32
+
+def FMDL_Material_Flags_transparent_get(material):
+	return material.fmdl_alpha_flags & 128 > 0
+
+def FMDL_Material_Flags_transparent_set(material, enabled):
+	if enabled:
+		material.fmdl_alpha_flags |= 128
+	else:
+		material.fmdl_alpha_flags &= ~128
+
+def FMDL_Material_Flags_castshadow_get(material):
+	return material.fmdl_shadow_flags & 1 == 0
+
+def FMDL_Material_Flags_castshadow_set(material, enabled):
+	if enabled:
+		material.fmdl_shadow_flags &= ~1
+	else:
+		material.fmdl_shadow_flags |= 1
+
+
+def FMDL_Material_Flags_invisible_get(material):
+	return material.fmdl_shadow_flags & 2 > 0
+
+def FMDL_Material_Flags_invisible_set(material, enabled):
+	if enabled:
+		material.fmdl_shadow_flags |= 2
+	else:
+		material.fmdl_shadow_flags &= ~2
+
+def FMDL_Mesh_BoneGroup_Bone_set_enabled(bone, enabled):
+	vertex_groups = bpy.context.active_object.vertex_groups
+	if enabled and bone.name not in vertex_groups:
+		vertex_groups.new(bone.name)
+		vertexGroupSummaryRemove(bpy.context.active_object.name)
+	if not enabled and bone.name in vertex_groups:
+		vertex_groups.remove(vertex_groups[bone.name])
+		vertexGroupSummaryRemove(bpy.context.active_object.name)
+
 class FMDL_Material_Parameter_List_Add(bpy.types.Operator):
 	bl_idname = "fmdl.material_parameter_add"
 	bl_label = "Add Parameter"
@@ -1214,18 +1260,20 @@ class FMDL_Material_Panel(bpy.types.Panel):
 		material = context.material
 		
 		mainColumn = self.layout.column(align = True)
-		row = mainColumn.row().split(0.33, align = True)
-		row.label("Shader:")
-		row.prop(material, "fmdl_material_shader", text = "")
-		row = mainColumn.row().split(0.33, align = True)
-		row.label("Technique:")
-		row.prop(material, "fmdl_material_technique", text = "")
-		row = mainColumn.row().split(0.33, align = True)
-		row.label("Alpha Enum:")
-		row.prop(material, "fmdl_alpha_enum", text = "")
-		row = mainColumn.row().split(0.33, align = True)
-		row.label("Shadow Enum:")
-		row.prop(material, "fmdl_shadow_enum", text = "")
+		mainColumn.prop(material, "fmdl_material_shader")
+		mainColumn.prop(material, "fmdl_material_technique")
+		
+		mainColumn.separator()
+		mainColumn.label("Material Flags:")
+		flagBox = mainColumn.box()
+		flagBox.prop(material, "fmdl_alpha_flags")
+		flagBox.prop(material, "fmdl_shadow_flags")
+		row = flagBox.row()
+		row.prop(material, "fmdl_flags_twosided")
+		row.prop(material, "fmdl_flags_transparent")
+		row = flagBox.row()
+		row.prop(material, "fmdl_flags_castshadow")
+		row.prop(material, "fmdl_flags_invisible")
 		
 		mainColumn.separator()
 		mainColumn.label("Material Parameters:")
@@ -1388,6 +1436,26 @@ def register():
 	bpy.types.Mesh.fmdl_lock_nonempty_vertex_groups = bpy.props.BoolProperty(name = "Lock in-use bone groups", default = True, options = {'SKIP_SAVE'})
 	bpy.types.Mesh.fmdl_show_vertex_group_vertices = bpy.props.BoolProperty(name = "Show vertices [v]", default = True, options = {'SKIP_SAVE'})
 	bpy.types.Mesh.fmdl_show_vertex_group_weights = bpy.props.BoolProperty(name = "Show weights [w]", default = True, options = {'SKIP_SAVE'})
+	bpy.types.Material.fmdl_flags_twosided = bpy.props.BoolProperty(name = "Twosided",
+		get = FMDL_Material_Flags_twosided_get,
+		set = FMDL_Material_Flags_twosided_set,
+		options = {'SKIP_SAVE'}
+	)
+	bpy.types.Material.fmdl_flags_transparent = bpy.props.BoolProperty(name = "Transparent",
+		get = FMDL_Material_Flags_transparent_get,
+		set = FMDL_Material_Flags_transparent_set,
+		options = {'SKIP_SAVE'}
+	)
+	bpy.types.Material.fmdl_flags_castshadow = bpy.props.BoolProperty(name = "Cast Shadow",
+		get = FMDL_Material_Flags_castshadow_get,
+		set = FMDL_Material_Flags_castshadow_set,
+		options = {'SKIP_SAVE'}
+	)
+	bpy.types.Material.fmdl_flags_invisible = bpy.props.BoolProperty(name = "Invisible",
+		get = FMDL_Material_Flags_invisible_get,
+		set = FMDL_Material_Flags_invisible_set,
+		options = {'SKIP_SAVE'}
+	)
 	bpy.types.Material.fmdl_material_parameter_active = bpy.props.IntProperty(name = "FMDL_Material_Parameter_Name_List index", default = -1, options = {'SKIP_SAVE'})
 	
 	for c in classes:

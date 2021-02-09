@@ -429,8 +429,8 @@ def buildSubmesh(mesh, parentBones, storableItemsPerBone, equipresentVertices, e
 	
 	submesh = FmdlFile.FmdlFile.Mesh()
 	submesh.materialInstance = mesh.materialInstance
-	submesh.alphaEnum = mesh.alphaEnum
-	submesh.shadowEnum = mesh.shadowEnum
+	submesh.alphaFlags = mesh.alphaFlags
+	submesh.shadowFlags = mesh.shadowFlags
 	submesh.vertexFields = mesh.vertexFields
 	submesh.extensionHeaders = mesh.extensionHeaders.copy()
 	submesh.boneGroup = FmdlFile.FmdlFile.BoneGroup()
@@ -658,8 +658,8 @@ def combineMesh(outputMesh, inputMesh, mergedEncodedVertices):
 def combineMeshes(meshes, bones):
 	output = FmdlFile.FmdlFile.Mesh()
 	output.materialInstance = meshes[0].materialInstance
-	output.alphaEnum = meshes[0].alphaEnum
-	output.shadowEnum = meshes[0].shadowEnum
+	output.alphaFlags = meshes[0].alphaFlags
+	output.shadowFlags = meshes[0].shadowFlags
 	output.vertexFields = meshes[0].vertexFields
 	output.extensionHeaders = meshes[0].extensionHeaders.copy()
 	

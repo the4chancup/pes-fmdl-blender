@@ -175,7 +175,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		for mesh in fmdl.meshes:
 			materialInstance = mesh.materialInstance
-			key = (materialInstance, mesh.alphaEnum, mesh.shadowEnum)
+			key = (materialInstance, mesh.alphaFlags, mesh.shadowFlags)
 			if key in materialIDs:
 				continue
 			
@@ -184,8 +184,8 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			
 			blenderMaterial.fmdl_material_shader = materialInstance.shader
 			blenderMaterial.fmdl_material_technique = materialInstance.technique
-			blenderMaterial.fmdl_alpha_enum = mesh.alphaEnum
-			blenderMaterial.fmdl_shadow_enum = mesh.shadowEnum
+			blenderMaterial.fmdl_alpha_flags = mesh.alphaFlags
+			blenderMaterial.fmdl_shadow_flags = mesh.shadowFlags
 			
 			for (name, values) in materialInstance.parameters:
 				blenderMaterialParameter = blenderMaterial.fmdl_material_parameters.add()
@@ -349,7 +349,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		blenderMesh.update(calc_edges = True)
 		
-		materialKey = (mesh.materialInstance, mesh.alphaEnum, mesh.shadowEnum)
+		materialKey = (mesh.materialInstance, mesh.alphaFlags, mesh.shadowFlags)
 		blenderMaterial = bpy.data.materials[materialIDs[materialKey]]
 		
 		if mesh.vertexFields.hasNormal:
@@ -933,8 +933,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		mesh.boneGroup = FmdlFile.FmdlFile.BoneGroup()
 		mesh.boneGroup.bones = boneVector
 		mesh.materialInstance = materialFmdlObjects[blenderMaterial]
-		mesh.alphaEnum = blenderMaterial.fmdl_alpha_enum
-		mesh.shadowEnum = blenderMaterial.fmdl_shadow_enum
+		mesh.alphaFlags = blenderMaterial.fmdl_alpha_flags
+		mesh.shadowFlags = blenderMaterial.fmdl_shadow_flags
 		mesh.vertexFields = vertexFields
 		
 		return mesh
@@ -1280,8 +1280,8 @@ def exportSummary(context, rootObjectName):
 		output = "\tMaterial [%s]:\n" % simplifyBlenderObjectName(material.name)
 		output += "\t\tshader \"%s\"\n" % material.fmdl_material_shader
 		output += "\t\ttechnique \"%s\"\n" % material.fmdl_material_technique
-		output += "\t\talpha enum %s\n" % material.fmdl_alpha_enum
-		output += "\t\tshadow enum %s\n" % material.fmdl_shadow_enum
+		output += "\t\talpha flags %s\n" % material.fmdl_alpha_flags
+		output += "\t\tshadow flags %s\n" % material.fmdl_shadow_flags
 		for parameter in material.fmdl_material_parameters:
 			output += "\t\tparameter [%s] = [%.2f, %.2f, %.2f, %.2f]\n" % (parameter.name, *parameter.parameters)
 		for slot in material.texture_slots:

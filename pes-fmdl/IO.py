@@ -560,6 +560,11 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 	return bpy.data.objects[rootMeshGroupID]
 
 
+def simplifyBlenderObjectName(name):
+	if re.match('.*\\.[0-9]{3}$', name):
+		return name[:-4]
+	return name
+
 def exportFmdl(context, rootObjectName, exportSettings = None):
 	def exportMaterial(blenderMaterial, textureFmdlObjects):
 		materialInstance = FmdlFile.FmdlFile.MaterialInstance()
@@ -578,7 +583,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		for parameter in blenderMaterial.fmdl_material_parameters:
 			materialInstance.parameters.append((parameter.name, [v for v in parameter.parameters]))
 		
-		materialInstance.name = blenderMaterial.name
+		materialInstance.name = simplifyBlenderObjectName(blenderMaterial.name)
 		materialInstance.shader = blenderMaterial.fmdl_material_shader
 		materialInstance.technique = blenderMaterial.fmdl_material_technique
 		
@@ -987,7 +992,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 	
 	def createMeshGroup(blenderObject, name, parentMeshGroup, meshGroups, meshGroupFmdlObjects):
 		meshGroup = FmdlFile.FmdlFile.MeshGroup()
-		meshGroup.name = name
+		meshGroup.name = simplifyBlenderObjectName(name)
 		# Fill in meshGroup.boundingBox later
 		meshGroup.visible = True
 		
@@ -1267,7 +1272,7 @@ def exportSummary(context, rootObjectName):
 		return output
 	
 	def materialSummary(material):
-		output = "\tMaterial [%s]:\n" % material.name
+		output = "\tMaterial [%s]:\n" % simplifyBlenderObjectName(material.name)
 		output += "\t\tshader \"%s\"\n" % material.fmdl_material_shader
 		output += "\t\ttechnique \"%s\"\n" % material.fmdl_material_technique
 		for parameter in material.fmdl_material_parameters:

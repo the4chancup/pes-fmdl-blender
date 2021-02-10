@@ -2,7 +2,7 @@ import bpy
 import bpy.props
 import bpy_extras.io_utils
 
-from . import FmdlFile, Ftex, IO, PesSkeletonData
+from . import FmdlFile, Ftex, IO, MaterialPresets, PesSkeletonData
 
 
 
@@ -1123,6 +1123,133 @@ class FMDL_Mesh_BoneGroup_Panel(bpy.types.Panel):
 
 
 
+def FMDL_Material_Preset_get(material):
+	def matches(material, preset):
+		if material.fmdl_material_shader != preset.shader:
+			return False
+		if material.fmdl_material_technique != preset.technique:
+			return False
+		if material.fmdl_alpha_flags & preset.alphaFlagsBitMask != preset.alphaFlagsDefault & preset.alphaFlagsBitMask:
+			return False
+		if material.fmdl_shadow_flags & preset.shadowFlagsBitMask != preset.shadowFlagsDefault & preset.shadowFlagsBitMask:
+			return False
+		
+		textures = {}
+		for textureSlot in material.texture_slots:
+			if textureSlot is None:
+				continue
+			if textureSlot.texture is None:
+				continue
+			if textureSlot.texture.fmdl_texture_role in textures:
+				return False
+			textures[textureSlot.texture.fmdl_texture_role] = textureSlot.texture
+		if len(preset.textures) != len(textures):
+			return False
+		for texture in preset.textures:
+			if texture.role not in textures:
+				return False
+			if texture.required:
+				if textures[texture.role].fmdl_texture_directory != texture.directory:
+					return False
+				if textures[texture.role].fmdl_texture_filename != texture.filename:
+					return False
+		
+		parameters = {}
+		for parameter in material.fmdl_material_parameters:
+			if parameter.name in parameters:
+				return False
+			parameters[parameter.name] = parameter.parameters
+		if len(preset.parameters) != len(parameters):
+			return False
+		for parameter in preset.parameters:
+			if parameter.name not in parameters:
+				return False
+			for i in range(4):
+				if parameter.valuesRequired[i]:
+					if parameters[parameter.name][i] != parameter.defaultValues[i]:
+						return False
+		
+		return True
+	
+	for i in range(len(MaterialPresets.presets)):
+		if matches(material, MaterialPresets.presets[i]):
+			return len(MaterialPresets.presets) - i
+	return 0
+
+def FMDL_Material_Preset_set(material, value):
+	if value == 0:
+		return
+	preset = MaterialPresets.presets[len(MaterialPresets.presets) - value]
+	presetTextures = { texture.role : texture for texture in preset.textures }
+	presetParameters = { parameter.name : parameter for parameter in preset.parameters }
+	
+	material.fmdl_material_shader = preset.shader
+	material.fmdl_material_technique = preset.technique
+	material.fmdl_alpha_flags = (
+		  (preset.alphaFlagsDefault & preset.alphaFlagsBitMask)
+		| (material.fmdl_alpha_flags & ~preset.alphaFlagsBitMask)
+	)
+	material.fmdl_shadow_flags = (
+		  (preset.shadowFlagsDefault & preset.shadowFlagsBitMask)
+		| (material.fmdl_shadow_flags & ~preset.shadowFlagsBitMask)
+	)
+	
+	# Summarize and clear out existing texture slots
+	uvMapColor = None
+	uvMapNormals = None
+	existingTextures = {}
+	for textureSlot in material.texture_slots:
+		if textureSlot is None:
+			continue
+		if textureSlot.texture is None:
+			continue
+		if textureSlot.texture.fmdl_texture_role not in presetTextures:
+			continue
+		if presetTextures[textureSlot.texture.fmdl_texture_role].required:
+			continue
+		if textureSlot.texture.fmdl_texture_role in existingTextures:
+			continue
+		existingTextures[textureSlot.texture.fmdl_texture_role] = textureSlot.texture.name
+		if '_NRM' in textureSlot.texture.fmdl_texture_role and uvMapNormals is None:
+			uvMapNormals = textureSlot.uv_layer
+		if '_NRM' not in textureSlot.texture.fmdl_texture_role and uvMapColor is None:
+			uvMapColor = textureSlot.uv_layer
+	for i in range(len(material.texture_slots)):
+		material.texture_slots.clear(i)
+	if uvMapColor is None:
+		uvMapColor = 'UVMap'
+	if uvMapNormals is None:
+		uvMapNormals = uvMapColor
+	# Create new texture slots
+	for texture in preset.textures:
+		if texture.role in existingTextures:
+			blenderTexture = bpy.data.textures[existingTextures[texture.role]]
+		else:
+			blenderTexture = IO.createTexture(texture.role, texture.directory, texture.filename)
+		
+		IO.createTextureSlot(material, blenderTexture, uvMapColor, uvMapNormals)
+	
+	# Summarize and clear out existing parameters
+	existingParameters = {}
+	for parameters in material.fmdl_material_parameters:
+		if parameters.name not in presetParameters:
+			continue
+		if parameters.name in existingParameters:
+			continue
+		existingParameters[parameters.name] = parameters.parameters[:]
+	material.fmdl_material_parameters.clear()
+	# Create new parameters
+	for parameter in preset.parameters:
+		blenderParameter = material.fmdl_material_parameters.add()
+		blenderParameter.name = parameter.name
+		if parameter.name in existingParameters:
+			blenderParameter.parameters = [
+				parameter.defaultValues[i] if parameter.valuesRequired[i] else existingParameters[parameter.name][i]
+				for i in range(4)
+			]
+		else:
+			blenderParameter.parameters = parameter.defaultValues[:]
+
 def FMDL_Material_Flags_twosided_get(material):
 	return material.fmdl_alpha_flags & 32 > 0
 
@@ -1149,7 +1276,6 @@ def FMDL_Material_Flags_castshadow_set(material, enabled):
 		material.fmdl_shadow_flags &= ~1
 	else:
 		material.fmdl_shadow_flags |= 1
-
 
 def FMDL_Material_Flags_invisible_get(material):
 	return material.fmdl_shadow_flags & 2 > 0
@@ -1260,6 +1386,7 @@ class FMDL_Material_Panel(bpy.types.Panel):
 		material = context.material
 		
 		mainColumn = self.layout.column(align = True)
+		mainColumn.prop(material, "fmdl_material_preset")
 		mainColumn.prop(material, "fmdl_material_shader")
 		mainColumn.prop(material, "fmdl_material_technique")
 		
@@ -1402,6 +1529,12 @@ def register():
 	defaultType = list(PesSkeletonData.skeletonBones[defaultPesVersion].keys())[0]
 	defaultSkeletonType = '%s_%s' % (defaultPesVersion, defaultType)
 	
+	materialPresetTypes = []
+	for preset in MaterialPresets.presets:
+		materialPresetTypes.append((preset.name.replace(' ', '_').replace('-', '_'), preset.name, preset.description))
+	materialPresetTypes.append(('custom', 'Custom', 'Anything else'))
+	materialPresetTypes.reverse()
+	
 	bpy.types.Object.fmdl_file = bpy.props.BoolProperty(name = "Is FMDL file", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_filename = bpy.props.StringProperty(name = "FMDL filename", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_export_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
@@ -1436,6 +1569,13 @@ def register():
 	bpy.types.Mesh.fmdl_lock_nonempty_vertex_groups = bpy.props.BoolProperty(name = "Lock in-use bone groups", default = True, options = {'SKIP_SAVE'})
 	bpy.types.Mesh.fmdl_show_vertex_group_vertices = bpy.props.BoolProperty(name = "Show vertices [v]", default = True, options = {'SKIP_SAVE'})
 	bpy.types.Mesh.fmdl_show_vertex_group_weights = bpy.props.BoolProperty(name = "Show weights [w]", default = True, options = {'SKIP_SAVE'})
+	bpy.types.Material.fmdl_material_preset = bpy.props.EnumProperty(name = "Preset",
+		items = materialPresetTypes,
+		default = 'custom',
+		get = FMDL_Material_Preset_get,
+		set = FMDL_Material_Preset_set,
+		options = {'SKIP_SAVE'}
+	)
 	bpy.types.Material.fmdl_flags_twosided = bpy.props.BoolProperty(name = "Twosided",
 		get = FMDL_Material_Flags_twosided_get,
 		set = FMDL_Material_Flags_twosided_set,

@@ -73,6 +73,50 @@ def createFittingBoundingBox(context, meshObject):
 	
 	createBoundingBox(context, meshObject, minCoordinates, maxCoordinates)
 
+def createTexture(role, directory, filename):
+	blenderImage = bpy.data.images.new(filename, width = 0, height = 0)
+	blenderImage.source = 'FILE'
+	
+	if '_SRGB' in role:
+		blenderImage.colorspace_settings.name = 'sRGB'
+	elif '_LIN' in role:
+		blenderImage.colorspace_settings.name = 'Linear'
+	else:
+		blenderImage.colorspace_settings.name = 'Non-Color'
+	
+	textureName = "[%s] %s" % (role, filename)
+	blenderTexture = bpy.data.textures.new(textureName, type = 'IMAGE')
+	blenderTexture.image = blenderImage
+	blenderTexture.use_alpha = True
+	
+	if '_NRM' in role:
+		blenderTexture.use_normal_map = True
+	
+	blenderTexture.fmdl_texture_filename = filename
+	blenderTexture.fmdl_texture_directory = directory
+	blenderTexture.fmdl_texture_role = role
+	
+	return blenderTexture
+
+def createTextureSlot(blenderMaterial, blenderTexture, uvMapColor, uvMapNormals):
+	blenderTextureSlot = blenderMaterial.texture_slots.add()
+	blenderTextureSlot.texture = blenderTexture
+	blenderTextureSlot.texture_coords = 'UV'
+	if '_NRM' in blenderTexture.fmdl_texture_role:
+		blenderTextureSlot.uv_layer = uvMapNormals
+	else:
+		blenderTextureSlot.uv_layer = uvMapColor
+	
+	if blenderTexture.fmdl_texture_role == 'Base_Tex_SRGB' or blenderTexture.fmdl_texture_role == 'Base_Tex_LIN':
+		blenderTextureSlot.use_map_diffuse = True
+		blenderTextureSlot.use_map_color_diffuse = True
+		blenderTextureSlot.use_map_alpha = True
+		blenderTextureSlot.use = True
+	else:
+		blenderTextureSlot.use = False
+	
+	return blenderTextureSlot
+
 def importFmdl(context, fmdl, filename, importSettings = None):
 	UV_MAP_COLOR = 'UVMap'
 	UV_MAP_NORMALS = 'normal_map'
@@ -111,56 +155,22 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		if identifier in textureIDs:
 			blenderTexture = bpy.data.textures[textureIDs[identifier]]
 		else:
-			blenderImage = bpy.data.images.new(texture.filename, width = 0, height = 0)
-			blenderImage.source = 'FILE'
-			
-			if '_SRGB' in textureRole:
-				blenderImage.colorspace_settings.name = 'sRGB'
-			elif '_LIN' in textureRole:
-				blenderImage.colorspace_settings.name = 'Linear'
-			else:
-				blenderImage.colorspace_settings.name = 'Non-Color'
+			blenderTexture = createTexture(textureRole, texture.directory, texture.filename)
 			
 			if loadTextures:
 				filename = findTexture(texture, textureSearchPath)
 				if filename == None:
-					blenderImage.filepath = texture.directory + texture.filename
+					blenderTexture.image.filepath = texture.directory + texture.filename
 				elif filename.lower().endswith('.ftex'):
-					blenderImage.filepath = filename
-					Ftex.blenderImageLoadFtex(blenderImage, bpy.app.tempdir)
+					blenderTexture.image.filepath = filename
+					Ftex.blenderImageLoadFtex(blenderTexture.image, bpy.app.tempdir)
 				else:
-					blenderImage.filepath = filename
-					blenderImage.reload()
-			
-			textureName = "[%s] %s" % (textureRole, texture.filename)
-			blenderTexture = bpy.data.textures.new(textureName, type = 'IMAGE')
-			blenderTexture.image = blenderImage
-			blenderTexture.use_alpha = True
-			
-			if '_NRM' in textureRole:
-				blenderTexture.use_normal_map = True
+					blenderTexture.image.filepath = filename
+					blenderTexture.image.reload()
 			
 			textureIDs[identifier] = blenderTexture.name
 		
-		blenderTextureSlot = blenderMaterial.texture_slots.add()
-		blenderTextureSlot.texture = blenderTexture
-		blenderTextureSlot.texture_coords = 'UV'
-		if '_NRM' in textureRole:
-			blenderTextureSlot.uv_layer = uvMapNormals
-		else:
-			blenderTextureSlot.uv_layer = uvMapColor
-		
-		if textureRole == 'Base_Tex_SRGB' or textureRole == 'Base_Tex_LIN':
-			blenderTextureSlot.use_map_diffuse = True
-			blenderTextureSlot.use_map_color_diffuse = True
-			blenderTextureSlot.use_map_alpha = True
-			blenderTextureSlot.use = True
-		else:
-			blenderTextureSlot.use = False
-		
-		blenderTexture.fmdl_texture_filename = texture.filename
-		blenderTexture.fmdl_texture_directory = texture.directory
-		blenderTexture.fmdl_texture_role = textureRole
+		createTextureSlot(blenderMaterial, blenderTexture, uvMapColor, uvMapNormals)
 	
 	def materialHasSeparateUVMaps(materialInstance, fmdl):
 		for mesh in fmdl.meshes:

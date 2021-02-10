@@ -1,3 +1,17 @@
+0.6.0  2021-02-10
+
+	* Added material preset functionality.
+	* Alpha and shadow flags are now material properties, not mesh properties.
+	* Added interpretations to known alpha/shadow flags.
+	* Added tool to select underweighted vertices.
+	* Improved exporting object names with blender .001 suffixes.
+	* Improved support for loading kit textures.
+	* Fixed exporting files with large numbers of split meshes.
+	* Fixed a number of bugs exporting meshes without armature modifiers.
+	* Fixed texture loading of texture filenames without file extensions.
+	* Fixed preservation of active object when reordering meshes.
+	* Fixed export support summary updates when editing materials or textures.
+
 0.5.2  2020-10-05
 
 	* Fixed exporting of vertices with total bone weight over 1.0.

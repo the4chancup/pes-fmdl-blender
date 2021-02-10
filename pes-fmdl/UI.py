@@ -1,3 +1,4 @@
+import bmesh
 import bpy
 import bpy.props
 import bpy_extras.io_utils
@@ -1476,6 +1477,39 @@ class FMDL_Texture_Panel(bpy.types.Panel):
 
 
 
+class FMDL_Util_Select_Underweight(bpy.types.Operator):
+	"""Select vertices with low or no weight paint"""
+	bl_idname = "fmdl.select_underweight"
+	bl_label = "Select Underweighted Vertices"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	weight_treshold = bpy.props.FloatProperty(name = "Maximum weight", min = 0.0, max = 1.0, default = 0.5)
+	
+	@classmethod
+	def poll(cls, context):
+		return context.mode == 'EDIT_MESH'
+	
+	def execute(self, context):
+		treshold = self.weight_treshold
+		if context.mode != 'EDIT_MESH' or context.edit_object is None or context.edit_object.type != 'MESH' or context.edit_object.data is None:
+			return {'CANCELLED'}
+		mesh = context.edit_object.data
+		
+		bm = bmesh.from_edit_mesh(mesh)
+		deform = bm.verts.layers.deform.active
+		if deform is not None:
+			for vertex in bm.verts:
+				if sum(vertex[deform].values()) <= treshold:
+					vertex.select = True
+		bmesh.update_edit_mesh(mesh, tessface = False, destructive = False)
+		
+		return {'FINISHED'}
+
+def FMDL_Util_Select_Underweight_MenuItem(self, context):
+	self.layout.operator(FMDL_Util_Select_Underweight.bl_idname, text=FMDL_Util_Select_Underweight.bl_label)
+
+
+
 classes = [
 	FMDL_Util_window_set_screen,
 	
@@ -1515,6 +1549,8 @@ classes = [
 	
 	FMDL_Texture_Load_Ftex,
 	FMDL_Texture_Panel,
+	
+	FMDL_Util_Select_Underweight,
 ]
 
 
@@ -1604,12 +1640,14 @@ def register():
 	bpy.types.INFO_MT_file_import.append(FMDL_Scene_FMDL_Import_MenuItem)
 	bpy.types.INFO_MT_file_export.append(FMDL_Scene_FMDL_Export_MenuItem)
 	bpy.types.TEXTURE_PT_image.append(FMDL_Texture_Load_Ftex_Button)
+	bpy.types.VIEW3D_MT_select_edit_mesh.append(FMDL_Util_Select_Underweight_MenuItem)
 	
 	bpy.app.handlers.scene_update_post.append(FMDL_Util_TrackChanges)
 
 def unregister():
 	bpy.app.handlers.scene_update_post.remove(FMDL_Util_TrackChanges)
 	
+	bpy.types.VIEW3D_MT_select_edit_mesh.remove(FMDL_Util_Select_Underweight_MenuItem)
 	bpy.types.TEXTURE_PT_image.remove(FMDL_Texture_Load_Ftex_Button)
 	bpy.types.INFO_MT_file_export.remove(FMDL_Scene_FMDL_Export_MenuItem)
 	bpy.types.INFO_MT_file_import.remove(FMDL_Scene_FMDL_Import_MenuItem)

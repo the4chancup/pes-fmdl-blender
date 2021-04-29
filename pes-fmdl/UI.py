@@ -1124,6 +1124,12 @@ class FMDL_Mesh_BoneGroup_Panel(bpy.types.Panel):
 
 
 
+def FMDL_Mesh_High_Definition_UV_setting(self, context):
+	if context.mesh is not None:
+		self.layout.prop(context.mesh, 'fmdl_high_precision_uvs')
+
+
+
 def FMDL_Material_Preset_get(material):
 	def matches(material, preset):
 		if material.fmdl_material_shader != preset.shader:
@@ -1639,6 +1645,7 @@ def register():
 	
 	bpy.types.INFO_MT_file_import.append(FMDL_Scene_FMDL_Import_MenuItem)
 	bpy.types.INFO_MT_file_export.append(FMDL_Scene_FMDL_Export_MenuItem)
+	bpy.types.DATA_PT_uv_texture.append(FMDL_Mesh_High_Definition_UV_setting)
 	bpy.types.TEXTURE_PT_image.append(FMDL_Texture_Load_Ftex_Button)
 	bpy.types.VIEW3D_MT_select_edit_mesh.append(FMDL_Util_Select_Underweight_MenuItem)
 	
@@ -1649,6 +1656,7 @@ def unregister():
 	
 	bpy.types.VIEW3D_MT_select_edit_mesh.remove(FMDL_Util_Select_Underweight_MenuItem)
 	bpy.types.TEXTURE_PT_image.remove(FMDL_Texture_Load_Ftex_Button)
+	bpy.types.DATA_PT_uv_texture.remove(FMDL_Mesh_High_Definition_UV_setting)
 	bpy.types.INFO_MT_file_export.remove(FMDL_Scene_FMDL_Export_MenuItem)
 	bpy.types.INFO_MT_file_import.remove(FMDL_Scene_FMDL_Import_MenuItem)
 	

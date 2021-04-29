@@ -303,6 +303,7 @@ class FmdlFile:
 			self.hasBoneMapping = False
 			self.uvCount = 0
 			self.uvEqualities = {}
+			self.highPrecisionUv = False
 	
 	class VertexEncoding:
 		def __init__(self):
@@ -364,6 +365,7 @@ class FmdlFile:
 	
 	class FmdlVertexDatumFormat:
 		tripleFloat32 = 1
+		doubleFloat32 = 2
 		#??int16? = 4
 		quadFloat16 = 6
 		doubleFloat16 = 7
@@ -648,18 +650,26 @@ class FmdlFile:
 					uv0 = True
 					uvOffsets[0] = offset
 					vertexFields.uvCount += 1
+					if datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat32:
+						vertexFields.highPrecisionUv = True
 				if datumType == FmdlFile.FmdlVertexDatumType.uv1:
 					uv1 = True
 					uvOffsets[1] = offset
 					vertexFields.uvCount += 1
+					if datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat32:
+						vertexFields.highPrecisionUv = True
 				if datumType == FmdlFile.FmdlVertexDatumType.uv2:
 					uv2 = True
 					uvOffsets[2] = offset
 					vertexFields.uvCount += 1
+					if datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat32:
+						vertexFields.highPrecisionUv = True
 				if datumType == FmdlFile.FmdlVertexDatumType.uv3:
 					uv3 = True
 					uvOffsets[3] = offset
 					vertexFields.uvCount += 1
+					if datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat32:
+						vertexFields.highPrecisionUv = True
 				if datumType == FmdlFile.FmdlVertexDatumType.boneWeights:
 					boneWeights = True
 					vertexFields.hasBoneMapping = True
@@ -955,6 +965,7 @@ class FmdlFile:
 			
 			if datumFormat not in [
 				FmdlFile.FmdlVertexDatumFormat.tripleFloat32,
+				FmdlFile.FmdlVertexDatumFormat.doubleFloat32,
 				FmdlFile.FmdlVertexDatumFormat.quadFloat16,
 				FmdlFile.FmdlVertexDatumFormat.doubleFloat16,
 				FmdlFile.FmdlVertexDatumFormat.quadFloat8,
@@ -1169,28 +1180,38 @@ class FmdlFile:
 						raise InvalidFmdl("Unexpected format %d for vertex bone index data" % datumFormat)
 					boneIndices = unpack('< 4B', vertexBuffer[position : position + 4])
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv0:
-					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
+					if datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
+						uvEncoding[0] = vertexBuffer[position : position + 4]
+						value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[0])]
+					elif datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat32:
+						uvEncoding[0] = vertexBuffer[position : position + 8]
+						value = unpack('< 2f', uvEncoding[0])
+					else:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					uvEncoding[0] = vertexBuffer[position : position + 4]
-					value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[0])]
 					uv[0] = FmdlFile.Vector2(value[0], value[1])
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv1:
-					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
-						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					uvEncoding[1] = vertexBuffer[position : position + 4]
-					value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[1])]
+					if datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
+						uvEncoding[1] = vertexBuffer[position : position + 4]
+						value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[1])]
+					elif datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat32:
+						uvEncoding[1] = vertexBuffer[position : position + 8]
+						value = unpack('< 2f', uvEncoding[1])
 					uv[1] = FmdlFile.Vector2(value[0], value[1])
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv2:
-					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
-						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					uvEncoding[2] = vertexBuffer[position : position + 4]
-					value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[2])]
+					if datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
+						uvEncoding[2] = vertexBuffer[position : position + 4]
+						value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[2])]
+					elif datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat32:
+						uvEncoding[2] = vertexBuffer[position : position + 8]
+						value = unpack('< 2f', uvEncoding[2])
 					uv[2] = FmdlFile.Vector2(value[0], value[1])
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv3:
-					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
-						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
-					uvEncoding[3] = vertexBuffer[position : position + 4]
-					value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[3])]
+					if datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
+						uvEncoding[3] = vertexBuffer[position : position + 4]
+						value = [FmdlFile.parseFloat16(x) for x in unpack('< 2H', uvEncoding[3])]
+					elif datumFormat == FmdlFile.FmdlVertexDatumFormat.doubleFloat32:
+						uvEncoding[3] = vertexBuffer[position : position + 8]
+						value = unpack('< 2f', uvEncoding[3])
 					uv[3] = FmdlFile.Vector2(value[0], value[1])
 				elif datumType == FmdlFile.FmdlVertexDatumType.tangent:
 					if datumFormat != FmdlFile.FmdlVertexDatumFormat.quadFloat16:
@@ -1521,13 +1542,20 @@ class FmdlFile:
 					equalUv = uv
 					break
 			
-			if equalUv != None:
-				FmdlFile.addVertexFormat(fmdl, uvTypes[i], FmdlFile.FmdlVertexDatumFormat.doubleFloat16, uvOffsets[equalUv])
+			if vertexFields.highPrecisionUv:
+				uvType = FmdlFile.FmdlVertexDatumFormat.doubleFloat32
+				uvSize = 8
 			else:
-				FmdlFile.addVertexFormat(fmdl, uvTypes[i], FmdlFile.FmdlVertexDatumFormat.doubleFloat16, bufferOffsets[1])
-				formatEntries.append((1, uvTypes[i], FmdlFile.FmdlVertexDatumFormat.doubleFloat16, bufferOffsets[1]))
+				uvType = FmdlFile.FmdlVertexDatumFormat.doubleFloat16
+				uvSize = 4
+			
+			if equalUv != None:
+				FmdlFile.addVertexFormat(fmdl, uvTypes[i], uvType, uvOffsets[equalUv])
+			else:
+				FmdlFile.addVertexFormat(fmdl, uvTypes[i], uvType, bufferOffsets[1])
+				formatEntries.append((1, uvTypes[i], uvType, bufferOffsets[1]))
 				uvOffsets[i] = bufferOffsets[1]
-				bufferOffsets[1] += 4
+				bufferOffsets[1] += uvSize
 			typeEntries[3] += 1
 		
 		FmdlFile.addMeshFormat(fmdl, 0, typeEntries[0], bufferOffsets[0], 0, vertexPositionBufferOffset)
@@ -1643,9 +1671,12 @@ class FmdlFile:
 				vertexEncoding.color = pack('< 4B', *(int(x * 255 + 0.5) for x in vertex.color))
 			for i in range(4):
 				if i < vertexFields.uvCount:
-					vertexEncoding.uv.append(pack('< 2H', *(FmdlFile.encodeFloat16(x) for x in
-						(vertex.uv[i].u, vertex.uv[i].v)
-					)))
+					if vertexFields.highPrecisionUv:
+						vertexEncoding.uv.append(pack('< 2f', vertex.uv[i].u, vertex.uv[i].v))
+					else:
+						vertexEncoding.uv.append(pack('< 2H', *(FmdlFile.encodeFloat16(x) for x in
+								(vertex.uv[i].u, vertex.uv[i].v)
+						)))
 			if vertexFields.hasBoneMapping:
 				#
 				# fmdl bone mappings support at most 4 bones, and store weights as 8-bit integers.
@@ -1723,19 +1754,19 @@ class FmdlFile:
 						boneIndices += ((0,) * (4 - len(boneIndices)))
 					value = pack('< 4B', *boneIndices)
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv0:
-					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
+					if datumFormat not in [FmdlFile.FmdlVertexDatumFormat.doubleFloat16, FmdlFile.FmdlVertexDatumFormat.doubleFloat32]:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
 					value = vertexEncoding.uv[0]
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv1:
-					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
+					if datumFormat not in [FmdlFile.FmdlVertexDatumFormat.doubleFloat16, FmdlFile.FmdlVertexDatumFormat.doubleFloat32]:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
 					value = vertexEncoding.uv[1]
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv2:
-					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
+					if datumFormat not in [FmdlFile.FmdlVertexDatumFormat.doubleFloat16, FmdlFile.FmdlVertexDatumFormat.doubleFloat32]:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
 					value = vertexEncoding.uv[2]
 				elif datumType == FmdlFile.FmdlVertexDatumType.uv3:
-					if datumFormat != FmdlFile.FmdlVertexDatumFormat.doubleFloat16:
+					if datumFormat not in [FmdlFile.FmdlVertexDatumFormat.doubleFloat16, FmdlFile.FmdlVertexDatumFormat.doubleFloat32]:
 						raise InvalidFmdl("Unexpected format %d for vertex uv data" % datumFormat)
 					value = vertexEncoding.uv[3]
 				elif datumType == FmdlFile.FmdlVertexDatumType.tangent:

@@ -414,6 +414,8 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		if mesh.vertexFields.uvCount >= 3:
 			raise UnsupportedFmdl("No support for fmdl files with more than 2 UV maps")
 		
+		blenderMesh.fmdl_high_precision_uvs = mesh.vertexFields.highPrecisionUv
+		
 		blenderMesh.materials.append(blenderMaterial)
 		
 		blenderMeshObject = bpy.data.objects.new(blenderMesh.name, blenderMesh)
@@ -930,6 +932,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			else:
 				uvLayerNormal = normalUvMaps[0]
 				vertexFields.uvCount = 2
+		
+		vertexFields.highPrecisionUv = blenderMesh.fmdl_high_precision_uvs
 		
 		boneVector = [bonesByName[vertexGroup.name] for vertexGroup in blenderMeshObject.vertex_groups]
 		if len(boneVector) > 0:

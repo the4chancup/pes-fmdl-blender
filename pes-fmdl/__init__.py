@@ -18,6 +18,8 @@ class FMDL_MaterialParameter(bpy.types.PropertyGroup):
 def register():
 	bpy.utils.register_class(FMDL_MaterialParameter)
 	
+	bpy.types.Mesh.fmdl_high_precision_uvs = bpy.props.BoolProperty(name = "FMDL High Precision UVs", default = False, description = "Allows for higher quality UV coordinates, at the cost of slightly higher file size")
+	
 	bpy.types.Material.fmdl_material_shader = bpy.props.StringProperty(name = "Shader")
 	bpy.types.Material.fmdl_material_technique = bpy.props.StringProperty(name = "Technique")
 	bpy.types.Material.fmdl_material_parameters = bpy.props.CollectionProperty(name = "Material Parameters", type = FMDL_MaterialParameter)

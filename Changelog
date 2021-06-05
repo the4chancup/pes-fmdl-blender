@@ -1,3 +1,7 @@
+0.6.2  2021-06-06
+
+	* Fixed dummy normal map and specular map filenames in material presets.
+
 0.6.1  2021-05-01
 
 	* Improved support for editing pitch models.

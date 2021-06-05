@@ -42,8 +42,8 @@ blinBasic = Preset(
 	0, 255 & ~1 & ~2,
 	[
 		Texture('Base_Tex_SRGB', '', '_bsm.dds', False),
-		Texture('NormalMap_Tex_NRM', '/Asset/model/character/common/sourceimages/', 'dummy_nrm.dds', True),
-		Texture('SpecularMap_Tex_LIN', '/Asset/model/character/common/sourceimages/', 'dummy_srm.dds', True),
+		Texture('NormalMap_Tex_NRM', '/Assets/pes16/model/character/common/sourceimages/', 'dummy_nrm.dds', True),
+		Texture('SpecularMap_Tex_LIN', '/Assets/pes16/model/character/common/sourceimages/', 'dummy_srm.dds', True),
 	],
 	[
 		Parameter('MatParamIndex_0', [0, 0, 0, 0], True),
@@ -56,8 +56,8 @@ blin = Preset(
 	0, 255 & ~1 & ~2,
 	[
 		Texture('Base_Tex_SRGB', '', '_bsm.dds', False),
-		Texture('NormalMap_Tex_NRM', '/Asset/model/character/common/sourceimages/', 'dummy_nrm.dds', False),
-		Texture('SpecularMap_Tex_LIN', '/Asset/model/character/common/sourceimages/', 'dummy_srm.dds', False),
+		Texture('NormalMap_Tex_NRM', '/Assets/pes16/model/character/common/sourceimages/', 'dummy_nrm.dds', False),
+		Texture('SpecularMap_Tex_LIN', '/Assets/pes16/model/character/common/sourceimages/', 'dummy_srm.dds', False),
 	],
 	[
 		Parameter('MatParamIndex_0', [0, 0, 0, 0], False),
@@ -92,7 +92,7 @@ metalic = Preset(
 	0, 255 & ~1 & ~2,
 	[
 		Texture('Base_Tex_SRGB', '', '_bsm.dds', False),
-		Texture('NormalMap_Tex_NRM', '/Asset/model/character/common/sourceimages/', 'dummy_nrm.dds', False),
+		Texture('NormalMap_Tex_NRM', '/Assets/pes16/model/character/common/sourceimages/', 'dummy_nrm.dds', False),
 		Texture('SpecularMap_Tex_LIN', '', '_srm.dds', False),
 		Texture('MetalnessMap_Tex_LIN', '', '_mtl.dds', False),
 	],
@@ -107,7 +107,7 @@ glass = Preset(
 	5, 255 & ~1 & ~2,
 	[
 		Texture('Base_Tex_SRGB', '', '_bsm.dds', False),
-		Texture('NormalMap_Tex_NRM', '/Asset/model/character/common/sourceimages/', 'dummy_nrm.dds', False),
+		Texture('NormalMap_Tex_NRM', '/Assets/pes16/model/character/common/sourceimages/', 'dummy_nrm.dds', False),
 		Texture('GlassReflection_Tex_SRGB', '', '_cbm.dds', False),
 		Texture('GlassReflectionMask_Tex_LIN', '', '_rfm.dds', False),
 	],

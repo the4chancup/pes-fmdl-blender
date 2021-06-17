@@ -226,6 +226,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	antiblur = bpy.props.BoolProperty(name = "Automatic antiblur meshes", default = True)
 	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	load_textures = bpy.props.BoolProperty(name = "Load textures", default = True)
@@ -238,6 +239,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 	
 	def invoke(self, context, event):
 		self.extensions_enabled = context.scene.fmdl_import_extensions_enabled
+		self.antiblur = context.scene.fmdl_import_antiblur
 		self.loop_preservation = context.scene.fmdl_import_loop_preservation
 		self.mesh_splitting = context.scene.fmdl_import_mesh_splitting
 		self.load_textures = context.scene.fmdl_import_load_textures
@@ -249,6 +251,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 		
 		importSettings = IO.ImportSettings()
 		importSettings.enableExtensions = self.extensions_enabled
+		importSettings.enableAntiblur = self.antiblur
 		importSettings.enableVertexLoopPreservation = self.loop_preservation
 		importSettings.enableMeshSplitting = self.mesh_splitting
 		importSettings.enableLoadTextures = self.load_textures
@@ -260,6 +263,7 @@ class FMDL_Scene_Import(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 		rootObject = IO.importFmdl(context, fmdlFile, filename, importSettings)
 		
 		rootObject.fmdl_export_extensions_enabled = importSettings.enableExtensions
+		rootObject.fmdl_export_antiblur = importSettings.enableAntiblur
 		rootObject.fmdl_export_loop_preservation = importSettings.enableVertexLoopPreservation
 		rootObject.fmdl_export_mesh_splitting = importSettings.enableMeshSplitting
 		
@@ -272,6 +276,7 @@ class FMDL_Scene_Export_Scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 	bl_options = {'REGISTER'}
 	
 	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	antiblur = bpy.props.BoolProperty("Automatic antiblur meshes", default = True)
 	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	
@@ -287,6 +292,7 @@ class FMDL_Scene_Export_Scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 	def execute(self, context):
 		exportSettings = IO.ExportSettings()
 		exportSettings.enableExtensions = self.extensions_enabled
+		exportSettings.enableAntiblur = self.antiblur
 		exportSettings.enableVertexLoopPreservation = self.loop_preservation
 		exportSettings.enableMeshSplitting = self.mesh_splitting
 		
@@ -311,6 +317,7 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 	
 	objectName = bpy.props.StringProperty("Object to export")
 	extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	antiblur = bpy.props.BoolProperty(name = "Automatic antiblur meshes", default = True)
 	loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	
@@ -326,6 +333,7 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 	def invoke(self, context, event):
 		self.objectName = context.active_object.name
 		self.extensions_enabled = context.active_object.fmdl_export_extensions_enabled
+		self.antiblur = context.active_object.fmdl_export_antiblur
 		self.loop_preservation = context.active_object.fmdl_export_loop_preservation
 		self.mesh_splitting = context.active_object.fmdl_export_mesh_splitting
 		if context.active_object.fmdl_filename != "":
@@ -339,6 +347,7 @@ class FMDL_Scene_Export_Object(bpy.types.Operator, bpy_extras.io_utils.ExportHel
 		
 		exportSettings = IO.ExportSettings()
 		exportSettings.enableExtensions = self.extensions_enabled
+		exportSettings.enableAntiblur = self.antiblur
 		exportSettings.enableVertexLoopPreservation = self.loop_preservation
 		exportSettings.enableMeshSplitting = self.mesh_splitting
 		
@@ -380,6 +389,10 @@ class FMDL_Scene_Panel_FMDL_Import_Settings(bpy.types.Menu):
 	
 	def draw(self, context):
 		self.layout.prop(context.scene, 'fmdl_import_extensions_enabled')
+		
+		row = self.layout.row()
+		row.prop(context.scene, 'fmdl_import_antiblur')
+		row.enabled = context.scene.fmdl_import_extensions_enabled
 		
 		row = self.layout.row()
 		row.prop(context.scene, 'fmdl_import_loop_preservation')
@@ -428,6 +441,9 @@ class FMDL_Scene_Panel_FMDL_Export_Settings(bpy.types.Menu):
 	
 	def draw(self, context):
 		self.layout.prop(context.active_object, 'fmdl_export_extensions_enabled')
+		row = self.layout.row()
+		row.prop(context.active_object, 'fmdl_export_antiblur')
+		row.enabled = context.active_object.fmdl_export_extensions_enabled
 		row = self.layout.row()
 		row.prop(context.active_object, 'fmdl_export_loop_preservation')
 		row.enabled = context.active_object.fmdl_export_extensions_enabled
@@ -508,6 +524,7 @@ class FMDL_Scene_Panel(bpy.types.Panel):
 			exportSettings.objectName = object.name
 			exportSettings.filepath = object.fmdl_filename
 			exportSettings.extensions_enabled = object.fmdl_export_extensions_enabled
+			exportSettings.antiblur = object.fmdl_export_antiblur
 			exportSettings.loop_preservation = object.fmdl_export_loop_preservation
 			exportSettings.mesh_splitting = object.fmdl_export_mesh_splitting
 			if object.fmdl_filename == "":
@@ -1396,6 +1413,7 @@ class FMDL_Material_Panel(bpy.types.Panel):
 		mainColumn.prop(material, "fmdl_material_preset")
 		mainColumn.prop(material, "fmdl_material_shader")
 		mainColumn.prop(material, "fmdl_material_technique")
+		mainColumn.prop(material, "fmdl_material_antiblur")
 		
 		mainColumn.separator()
 		mainColumn.label("Material Flags:")
@@ -1580,9 +1598,11 @@ def register():
 	bpy.types.Object.fmdl_file = bpy.props.BoolProperty(name = "Is FMDL file", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_filename = bpy.props.StringProperty(name = "FMDL filename", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_export_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	bpy.types.Object.fmdl_export_antiblur = bpy.props.BoolProperty("Automatic antiblur meshes", default = True)
 	bpy.types.Object.fmdl_export_loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	bpy.types.Object.fmdl_export_mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	bpy.types.Scene.fmdl_import_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
+	bpy.types.Scene.fmdl_import_antiblur = bpy.props.BoolProperty(name = "Automatic antiblur meshes", default = True)
 	bpy.types.Scene.fmdl_import_loop_preservation = bpy.props.BoolProperty(name = "Preserve split vertices", default = True)
 	bpy.types.Scene.fmdl_import_mesh_splitting = bpy.props.BoolProperty(name = "Autosplit overlarge meshes", default = True)
 	bpy.types.Scene.fmdl_import_load_textures = bpy.props.BoolProperty(name = "Load textures", default = True)

@@ -318,6 +318,8 @@ class FmdlFile:
 	class Mesh:
 		extensionHeaders = {
 			'Custom-Bounding-Box-Meshes',
+			'Has-Antiblur-Meshes',
+			'Is-Antiblur-Meshes',
 		}
 		
 		def __init__(self):

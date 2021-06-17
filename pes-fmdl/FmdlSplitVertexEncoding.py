@@ -267,6 +267,7 @@ def decodeFmdlVertexLoopPreservation(fmdl):
 	output = FmdlFile.FmdlFile()
 	output.bones = fmdl.bones
 	output.materialInstances = fmdl.materialInstances
+	output.extensionHeaders = fmdl.extensionHeaders
 	output.meshes = []
 	meshMap = {}
 	for mesh in fmdl.meshes:

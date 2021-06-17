@@ -5,7 +5,7 @@ import os
 import os.path
 import re
 
-from . import FmdlFile, FmdlMeshSplitting, FmdlSplitVertexEncoding, Ftex, PesSkeletonData
+from . import FmdlFile, FmdlAntiBlur, FmdlMeshSplitting, FmdlSplitVertexEncoding, Ftex, PesSkeletonData
 
 
 class UnsupportedFmdl(Exception):
@@ -21,6 +21,7 @@ class FmdlExportError(Exception):
 class ImportSettings:
 	def __init__(self):
 		self.enableExtensions = True
+		self.enableAntiblur = True
 		self.enableVertexLoopPreservation = True
 		self.enableMeshSplitting = True
 		self.enableLoadTextures = True
@@ -29,6 +30,7 @@ class ImportSettings:
 class ExportSettings:
 	def __init__(self):
 		self.enableExtensions = True
+		self.enableAntiblur = True
 		self.enableVertexLoopPreservation = True
 		self.enableMeshSplitting = True
 
@@ -185,7 +187,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		for mesh in fmdl.meshes:
 			materialInstance = mesh.materialInstance
-			key = (materialInstance, mesh.alphaFlags, mesh.shadowFlags)
+			key = (materialInstance, mesh.alphaFlags, mesh.shadowFlags, 'has-antiblur-meshes' in mesh.extensionHeaders)
 			if key in materialIDs:
 				continue
 			
@@ -196,6 +198,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			blenderMaterial.fmdl_material_technique = materialInstance.technique
 			blenderMaterial.fmdl_alpha_flags = mesh.alphaFlags
 			blenderMaterial.fmdl_shadow_flags = mesh.shadowFlags
+			blenderMaterial.fmdl_material_antiblur = 'has-antiblur-meshes' in mesh.extensionHeaders
 			
 			for (name, values) in materialInstance.parameters:
 				blenderMaterialParameter = blenderMaterial.fmdl_material_parameters.add()
@@ -359,7 +362,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		blenderMesh.update(calc_edges = True)
 		
-		materialKey = (mesh.materialInstance, mesh.alphaFlags, mesh.shadowFlags)
+		materialKey = (mesh.materialInstance, mesh.alphaFlags, mesh.shadowFlags, 'has-antiblur-meshes' in mesh.extensionHeaders)
 		blenderMaterial = bpy.data.materials[materialIDs[materialKey]]
 		
 		if mesh.vertexFields.hasNormal:
@@ -533,6 +536,8 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		fmdl = FmdlMeshSplitting.decodeFmdlSplitMeshes(fmdl)
 	if importSettings.enableExtensions and importSettings.enableVertexLoopPreservation:
 		fmdl = FmdlSplitVertexEncoding.decodeFmdlVertexLoopPreservation(fmdl)
+	if importSettings.enableExtensions and importSettings.enableAntiblur:
+		fmdl = FmdlAntiBlur.decodeFmdlAntiBlur(fmdl)
 	
 	if importSettings.enableImportAllBoundingBoxes:
 		importBoundingBoxMode = 'ALL'
@@ -951,6 +956,9 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		mesh.shadowFlags = blenderMaterial.fmdl_shadow_flags
 		mesh.vertexFields = vertexFields
 		
+		if blenderMaterial.fmdl_material_antiblur:
+			mesh.extensionHeaders.add('Has-Antiblur-Meshes')
+		
 		return mesh
 	
 	def exportCustomBoundingBox(blenderMeshObject, fmdlMeshObject):
@@ -1241,6 +1249,8 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 	fmdlFile.meshes = meshes
 	fmdlFile.meshGroups = meshGroups
 	
+	if exportSettings.enableExtensions and exportSettings.enableAntiblur:
+		fmdlFile = FmdlAntiBlur.encodeFmdlAntiBlur(fmdlFile)
 	if exportSettings.enableExtensions and exportSettings.enableVertexLoopPreservation:
 		fmdlFile = FmdlSplitVertexEncoding.encodeFmdlVertexLoopPreservation(fmdlFile)
 	if exportSettings.enableExtensions and exportSettings.enableMeshSplitting:
@@ -1294,6 +1304,7 @@ def exportSummary(context, rootObjectName):
 		output = "\tMaterial [%s]:\n" % simplifyBlenderObjectName(material.name)
 		output += "\t\tshader \"%s\"\n" % material.fmdl_material_shader
 		output += "\t\ttechnique \"%s\"\n" % material.fmdl_material_technique
+		output += "\t\tantiblur measures: %s\n" % ("yes" if material.fmdl_material_antiblur else "no")
 		output += "\t\talpha flags %s\n" % material.fmdl_alpha_flags
 		output += "\t\tshadow flags %s\n" % material.fmdl_shadow_flags
 		for parameter in material.fmdl_material_parameters:

@@ -17,6 +17,7 @@ class Parameter:
 class Preset:
 	def __init__(self, name, description,
 		shader, technique,
+		antiBlurDefault, antiBlurRequired,
 		alphaFlagsDefault, alphaFlagsBitMask,
 		shadowFlagsDefault, shadowFlagsBitMask,
 		textures,
@@ -26,6 +27,8 @@ class Preset:
 		self.description = description
 		self.shader = shader
 		self.technique = technique
+		self.antiBlurDefault = antiBlurDefault
+		self.antiBlurRequired = antiBlurRequired
 		self.alphaFlagsDefault = alphaFlagsDefault
 		self.alphaFlagsBitMask = alphaFlagsBitMask
 		self.shadowFlagsDefault = shadowFlagsDefault
@@ -38,8 +41,9 @@ class Preset:
 blinBasic = Preset(
 	'blin -- basic', 'Blin shader, preconfigured with the most common settings',
 	'fox3ddf_blin', 'fox3DDF_Blin',
+	False, True,
 	128, 255 & ~32,
-	0, 255 & ~1 & ~2,
+	128, 255 & ~1 & ~2,
 	[
 		Texture('Base_Tex_SRGB', '', '_bsm.dds', False),
 		Texture('NormalMap_Tex_NRM', '/Assets/pes16/model/character/common/sourceimages/', 'dummy_nrm.dds', True),
@@ -52,6 +56,7 @@ blinBasic = Preset(
 blin = Preset(
 	'blin -- custom', 'Blin shader, custom settings',
 	'fox3ddf_blin', 'fox3DDF_Blin',
+	False, True,
 	128, 255 & ~32 & ~128,
 	0, 255 & ~1 & ~2,
 	[
@@ -66,7 +71,8 @@ blin = Preset(
 
 constant = Preset(
 	'constant', 'Constant shader',
-	'fox3dfw_constant_srgb_ndr', 'fox3DFW_ConstantSRGB_NDR',
+	'fox3dfw_constant_srgb_ndr_solid', 'fox3DFW_ConstantSRGB_NDR_Solid',
+	True, True,
 	16, 255 & ~32,
 	5, 255 & ~1 & ~2,
 	[
@@ -74,9 +80,10 @@ constant = Preset(
 	],
 	[]
 )
-constantPlain = Preset(
-	'constant plain', 'Constant shader, extra plain version',
-	'fox3dfw_constant_srgb_plain', 'fox3DFW_ConstantSRGB_Plain',
+constantOriginal = Preset(
+	'constant -- original', 'Constant shader, original version',
+	'fox3dfw_constant_srgb_ndr', 'fox3DFW_ConstantSRGB_NDR',
+	True, True,
 	16, 255 & ~32,
 	5, 255 & ~1 & ~2,
 	[
@@ -88,6 +95,7 @@ constantPlain = Preset(
 metalic = Preset(
 	'metalic', 'Metal shader',
 	'fox3ddf_ggx', 'fox3DDF_GGX',
+	False, True,
 	128, 255 & ~32,
 	0, 255 & ~1 & ~2,
 	[
@@ -103,6 +111,7 @@ metalic = Preset(
 glass = Preset(
 	'glass', 'Glass shader',
 	'pes3dfw_glass2', 'pes3DFW_Glass2',
+	False, False,
 	16, 255 & ~32,
 	5, 255 & ~1 & ~2,
 	[
@@ -125,7 +134,7 @@ presets = [
 	blinBasic,
 	blin,
 	constant,
-	constantPlain,
+	constantOriginal,
 	metalic,
 	glass,
 ]

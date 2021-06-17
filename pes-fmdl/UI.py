@@ -1153,6 +1153,8 @@ def FMDL_Material_Preset_get(material):
 			return False
 		if material.fmdl_material_technique != preset.technique:
 			return False
+		if material.fmdl_material_antiblur & preset.antiBlurRequired != preset.antiBlurDefault & preset.antiBlurRequired:
+			return False
 		if material.fmdl_alpha_flags & preset.alphaFlagsBitMask != preset.alphaFlagsDefault & preset.alphaFlagsBitMask:
 			return False
 		if material.fmdl_shadow_flags & preset.shadowFlagsBitMask != preset.shadowFlagsDefault & preset.shadowFlagsBitMask:
@@ -1209,6 +1211,10 @@ def FMDL_Material_Preset_set(material, value):
 	
 	material.fmdl_material_shader = preset.shader
 	material.fmdl_material_technique = preset.technique
+	material.fmdl_material_antiblur = (
+		  (preset.antiBlurDefault & preset.antiBlurRequired)
+		| (material.fmdl_material_antiblur & ~preset.antiBlurRequired)
+	)
 	material.fmdl_alpha_flags = (
 		  (preset.alphaFlagsDefault & preset.alphaFlagsBitMask)
 		| (material.fmdl_alpha_flags & ~preset.alphaFlagsBitMask)

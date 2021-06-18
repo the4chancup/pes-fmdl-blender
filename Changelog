@@ -1,3 +1,8 @@
+0.7.0  2021-06-18
+
+	* Added automatic antiblur mesh generation functionality.
+	* Updated shader preset support.
+
 0.6.2  2021-06-06
 
 	* Fixed dummy normal map and specular map filenames in material presets.

@@ -43,7 +43,7 @@ blinBasic = Preset(
 	'fox3ddf_blin', 'fox3DDF_Blin',
 	False, True,
 	128, 255 & ~32,
-	128, 255 & ~1 & ~2,
+	0, 255 & ~1 & ~2,
 	[
 		Texture('Base_Tex_SRGB', '', '_bsm.dds', False),
 		Texture('NormalMap_Tex_NRM', '/Assets/pes16/model/character/common/sourceimages/', 'dummy_nrm.dds', True),

@@ -9,15 +9,29 @@ def encodeFmdlAntiBlur(fmdl):
 	antiBlurMaterials = {}
 	antiBlurMeshes = {}
 	
+	def isUvscrollMaterial(material):
+		for (parameterName, parameterValues) in material.parameters:
+			if parameterName in ["UV0_Speed_U", "UV0_Speed_V"]:
+				return True
+		return False
+	
 	def antiBlurMaterial(material, outputFmdl):
 		if material in antiBlurMaterials:
 			return antiBlurMaterials[material]
 		
 		output = FmdlFile.FmdlFile.MaterialInstance()
 		output.name = material.name + " antiblur"
-		output.technique = "fox3DDF_Blin_Fuzzblock"
-		output.shader = "fox3ddf_blin_fuzzblock"
-		output.parameters = []
+		if isUvscrollMaterial(material):
+			output.technique = "fox3DDF_Blin_Fuzzblock_UVScroll"
+			output.shader = "fox3ddf_blin_fuzzblock_uvscroll"
+			output.parameters = [("MatParamIndex_0", (0, 0, 0, 0))]
+			for (parameterName, parameterValues) in material.parameters:
+				if parameterName in ["UV0_Speed_U", "UV0_Speed_V", "Offset"]:
+					output.parameters.append((parameterName, parameterValues))
+		else:
+			output.technique = "fox3DDF_Blin_Fuzzblock"
+			output.shader = "fox3ddf_blin_fuzzblock"
+			output.parameters = [("MatParamIndex_0", (0, 0, 0, 0))]
 		
 		output.textures = []
 		for (role, texture) in material.textures:

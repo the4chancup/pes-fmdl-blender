@@ -1,3 +1,9 @@
+0.7.1  2023-10-09
+
+	* Add antiblur support for uvscroll-based shaders.
+	* Fixed interpretation of non-square fmdl textures.
+	* Fixed shadow flag 128 in blin material presets.
+
 0.7.0  2021-06-18
 
 	* Added automatic antiblur mesh generation functionality.

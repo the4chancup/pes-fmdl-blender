@@ -121,7 +121,7 @@ glass = Preset(
 	16, 255 & ~32,
 	5, 255 & ~1 & ~2,
 	[
-		Texture('Base_Tex_SRGB', '', '_bsm.dds', False),
+		Texture('Base_Tex_LIN', '', '_bsm.dds', False),
 		Texture('NormalMap_Tex_NRM', '/Assets/pes16/model/character/common/sourceimages/', 'dummy_nrm.dds', False),
 		Texture('GlassReflection_Tex_SRGB', '', '_cbm.dds', False),
 		Texture('GlassReflectionMask_Tex_LIN', '', '_rfm.dds', False),

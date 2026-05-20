@@ -36,6 +36,12 @@ class Preset:
 		self.textures = textures
 		self.parameters = parameters
 
+class TextureDirectoryPreset:
+	def __init__(self, name, path):
+		self.name = name
+		self.pathDefault = path
+		self.pathRegex = path.replace('0', '[0-9]')
+
 
 
 blinBasic = Preset(
@@ -137,4 +143,12 @@ presets = [
 	constantOriginal,
 	metalic,
 	glass,
+]
+
+textureDirectoryPresets = [
+	TextureDirectoryPreset('Face folder', '/Assets/pes16/model/character/face/real/00000/sourceimages/'),
+	TextureDirectoryPreset('Boots folder', '/Assets/pes16/model/character/boots/k0000/'),
+	TextureDirectoryPreset('Gloves folder', '/Assets/pes16/model/character/glove/g0000/'),
+	TextureDirectoryPreset('Team common folder', '/Assets/pes16/model/character/common/000/sourceimages/'),
+	TextureDirectoryPreset('PES common folder', '/Assets/pes16/model/character/common/sourceimages/'),
 ]

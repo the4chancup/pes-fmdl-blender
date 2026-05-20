@@ -2,6 +2,7 @@ import bmesh
 import bpy
 import bpy.props
 import bpy_extras.io_utils
+import re
 
 from . import FmdlFile, Ftex, IO, MaterialPresets, PesSkeletonData
 
@@ -1462,6 +1463,18 @@ class FMDL_Material_Panel(bpy.types.Panel):
 
 
 
+def FMDL_Texture_DirectoryPreset_get(texture):
+	for i in range(len(MaterialPresets.textureDirectoryPresets)):
+		if re.match(MaterialPresets.textureDirectoryPresets[i].pathRegex, texture.fmdl_texture_directory):
+			return len(MaterialPresets.textureDirectoryPresets) - i
+	return 0
+
+def FMDL_Texture_DirectoryPreset_set(texture, value):
+	if value == 0:
+		return
+	preset = MaterialPresets.textureDirectoryPresets[len(MaterialPresets.textureDirectoryPresets) - value]
+	texture.fmdl_texture_directory = preset.pathDefault
+
 class FMDL_Texture_Load_Ftex(bpy.types.Operator):
 	"""Load the FTEX texture"""
 	bl_idname = "fmdl.load_ftex"
@@ -1503,6 +1516,7 @@ class FMDL_Texture_Panel(bpy.types.Panel):
 		mainColumn = self.layout.column()
 		mainColumn.prop(texture, "fmdl_texture_role", text = "Role")
 		mainColumn.prop(texture, "fmdl_texture_filename", text = "Filename")
+		mainColumn.prop(texture, "fmdl_texture_directory_preset", text = "Directory preset")
 		mainColumn.prop(texture, "fmdl_texture_directory", text = "Directory")
 
 
@@ -1601,6 +1615,12 @@ def register():
 	materialPresetTypes.append(('custom', 'Custom', 'Anything else'))
 	materialPresetTypes.reverse()
 	
+	textureDirectoryPresetTypes = []
+	for preset in MaterialPresets.textureDirectoryPresets:
+		textureDirectoryPresetTypes.append((preset.name.replace(' ', '_').replace('-', '_'), preset.name, preset.name))
+	textureDirectoryPresetTypes.append(('custom', 'Custom', 'Anything else'))
+	textureDirectoryPresetTypes.reverse()
+	
 	bpy.types.Object.fmdl_file = bpy.props.BoolProperty(name = "Is FMDL file", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_filename = bpy.props.StringProperty(name = "FMDL filename", options = {'SKIP_SAVE'})
 	bpy.types.Object.fmdl_export_extensions_enabled = bpy.props.BoolProperty(name = "Enable blender-pes-fmdl extensions", default = True)
@@ -1665,6 +1685,13 @@ def register():
 		options = {'SKIP_SAVE'}
 	)
 	bpy.types.Material.fmdl_material_parameter_active = bpy.props.IntProperty(name = "FMDL_Material_Parameter_Name_List index", default = -1, options = {'SKIP_SAVE'})
+	bpy.types.Texture.fmdl_texture_directory_preset = bpy.props.EnumProperty(name = "Directory Preset",
+		items = textureDirectoryPresetTypes,
+		default = 'custom',
+		get = FMDL_Texture_DirectoryPreset_get,
+		set = FMDL_Texture_DirectoryPreset_set,
+		options = {'SKIP_SAVE'}
+	)
 	
 	for c in classes:
 		bpy.utils.register_class(c)

@@ -312,7 +312,7 @@ def computeSortVector(storableItems, bone):
 	for i in range(1, len(eigenvalues)):
 		if eigenvalues[i] > eigenvalues[maxIndex]:
 			maxIndex = i
-	sortVector = eigenvectors.T[i]
+	sortVector = eigenvectors.T[maxIndex]
 	
 	#
 	# sortVector can have either polarity.

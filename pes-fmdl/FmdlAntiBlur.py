@@ -9,6 +9,11 @@ def encodeFmdlAntiBlur(fmdl):
 	antiBlurMaterials = {}
 	antiBlurMeshes = {}
 	
+	def isUvstepMaterial(material):
+		for (parameterName, parameterValues) in material.parameters:
+			if parameterName in ["Tile_Count_U", "Tile_Count_V", "Tiles_Used"]:
+				return True
+	
 	def isUvscrollMaterial(material):
 		for (parameterName, parameterValues) in material.parameters:
 			if parameterName in ["UV0_Speed_U", "UV0_Speed_V"]:
@@ -21,7 +26,23 @@ def encodeFmdlAntiBlur(fmdl):
 		
 		output = FmdlFile.FmdlFile.MaterialInstance()
 		output.name = material.name + " antiblur"
-		if isUvscrollMaterial(material):
+		if isUvstepMaterial(material):
+			output.technique = "fox3DDF_Blin_Fuzzblock_UVStep"
+			output.shader = "fox3ddf_blin_fuzzblock_uvstep"
+			output.parameters = [("MatParamIndex_0", (0, 0, 0, 0))]
+			for (parameterName, parameterValues) in material.parameters:
+				if parameterName in [
+					"Tile_Count_U",
+					"Tile_Count_V",
+					"Tiles_Used",
+					"Scale_UVs_To_Tiles",
+					"Seconds_Per_Animation_Cycle",
+					"Use_Timing_Texture",
+					"Seconds_Per_Timing_U_Cycle",
+					"Seconds_Per_Timing_V_Cycle",
+				]:
+					output.parameters.append((parameterName, parameterValues))
+		elif isUvscrollMaterial(material):
 			output.technique = "fox3DDF_Blin_Fuzzblock_UVScroll"
 			output.shader = "fox3ddf_blin_fuzzblock_uvscroll"
 			output.parameters = [("MatParamIndex_0", (0, 0, 0, 0))]
@@ -34,10 +55,11 @@ def encodeFmdlAntiBlur(fmdl):
 			output.parameters = [("MatParamIndex_0", (0, 0, 0, 0))]
 		
 		output.textures = []
-		for (role, texture) in material.textures:
-			if role == 'Base_Tex_SRGB':
-				output.textures.append(('Base_Tex_SRGB', texture))
-				break
+		for requiredRole in ['Base_Tex_SRGB', 'Timing_Tex_LIN']:
+			for (role, texture) in material.textures:
+				if role == requiredRole:
+					output.textures.append((role, texture))
+					break
 		if len(output.textures) == 0:
 			for (role, texture) in material.textures:
 				if 'base' in role.lower():

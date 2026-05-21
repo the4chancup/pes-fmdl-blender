@@ -1,3 +1,12 @@
+0.7.2  2026-05-22
+
+	* Improved support for editing meshes with multiple UV maps.
+	* Add support for uvstep antiblur shader.
+	* Add uvstep and uvscroll material presets.
+	* Added texture directory preset selector.
+	* Fixed incorrect texture roles in glass shader preset.
+	* Fixed a minor issue with mesh splitting submesh structure.
+
 0.7.1  2023-10-09
 
 	* Add antiblur support for uvscroll-based shaders.

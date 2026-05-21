@@ -75,6 +75,12 @@ def createFittingBoundingBox(context, meshObject):
 	
 	createBoundingBox(context, meshObject, minCoordinates, maxCoordinates)
 
+def isTimingTexture(blenderTexture):
+	return blenderTexture.fmdl_texture_role == 'Timing_Tex_LIN'
+
+def isTimingMaterial(blenderMaterial):
+	return 'uvstep' in blenderMaterial.fmdl_material_shader
+
 def createTexture(role, directory, filename):
 	blenderImage = bpy.data.images.new(filename, width = 0, height = 0)
 	blenderImage.source = 'FILE'
@@ -100,29 +106,27 @@ def createTexture(role, directory, filename):
 	
 	return blenderTexture
 
-def createTextureSlot(blenderMaterial, blenderTexture, uvMapColor, uvMapNormals):
+def createTextureSlot(blenderMaterial, blenderTexture):
 	blenderTextureSlot = blenderMaterial.texture_slots.add()
 	blenderTextureSlot.texture = blenderTexture
 	blenderTextureSlot.texture_coords = 'UV'
-	if '_NRM' in blenderTexture.fmdl_texture_role:
-		blenderTextureSlot.uv_layer = uvMapNormals
-	else:
-		blenderTextureSlot.uv_layer = uvMapColor
 	
 	if blenderTexture.fmdl_texture_role == 'Base_Tex_SRGB' or blenderTexture.fmdl_texture_role == 'Base_Tex_LIN':
 		blenderTextureSlot.use_map_diffuse = True
 		blenderTextureSlot.use_map_color_diffuse = True
 		blenderTextureSlot.use_map_alpha = True
 		blenderTextureSlot.use = True
+		blenderTextureSlot.uv_layer = "UVMap"
 	else:
 		blenderTextureSlot.use = False
+		if isTimingTexture(blenderTexture):
+			blenderTextureSlot.uv_layer = "TimingUVMap"
+		else:
+			blenderTextureSlot.uv_layer = ""
 	
 	return blenderTextureSlot
 
 def importFmdl(context, fmdl, filename, importSettings = None):
-	UV_MAP_COLOR = 'UVMap'
-	UV_MAP_NORMALS = 'normal_map'
-	
 	def findTexture(texture, textureSearchPath):
 		textureFilename = texture.directory.replace('\\', '/').rstrip('/') + '/' + texture.filename.replace('\\', '/').lstrip('/')
 		textureFilenameComponents = tuple(filter(None, textureFilename.split('/')))
@@ -152,7 +156,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 		
 		return None
 	
-	def addTexture(blenderMaterial, textureRole, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath, loadTextures):
+	def addTexture(blenderMaterial, textureRole, texture, textureIDs, textureSearchPath, loadTextures):
 		identifier = (textureRole, texture)
 		if identifier in textureIDs:
 			blenderTexture = bpy.data.textures[textureIDs[identifier]]
@@ -172,14 +176,7 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			
 			textureIDs[identifier] = blenderTexture.name
 		
-		createTextureSlot(blenderMaterial, blenderTexture, uvMapColor, uvMapNormals)
-	
-	def materialHasSeparateUVMaps(materialInstance, fmdl):
-		for mesh in fmdl.meshes:
-			if mesh.materialInstance == materialInstance:
-				if mesh.vertexFields.uvCount >= 1 and 1 not in mesh.vertexFields.uvEqualities[0]:
-					return True
-		return False
+		createTextureSlot(blenderMaterial, blenderTexture)
 	
 	def importMaterials(fmdl, textureSearchPath, loadTextures):
 		materialIDs = {}
@@ -205,18 +202,12 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 				blenderMaterialParameter.name = name
 				blenderMaterialParameter.parameters = [v for v in values]
 			
-			uvMapColor = UV_MAP_COLOR
-			if materialHasSeparateUVMaps(materialInstance, fmdl):
-				uvMapNormals = UV_MAP_NORMALS
-			else:
-				uvMapNormals = UV_MAP_COLOR
-			
 			blenderMaterial.emit = 1.0
 			blenderMaterial.alpha = 0.0
 			blenderMaterial.use_transparency = True
 			
 			for (role, texture) in materialInstance.textures:
-				addTexture(blenderMaterial, role, texture, textureIDs, uvMapColor, uvMapNormals, textureSearchPath, loadTextures)
+				addTexture(blenderMaterial, role, texture, textureIDs, textureSearchPath, loadTextures)
 		
 		return materialIDs
 	
@@ -306,31 +297,6 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			vertexGroupIDs[bone] = blenderVertexGroup.name
 		return vertexGroupIDs
 	
-	def findUvMapImage(blenderMaterial, uvMapName, rolePrefix):
-		options = []
-		for slot in blenderMaterial.texture_slots:
-			if slot is None:
-				continue
-			if slot.uv_layer != uvMapName:
-				continue
-			if (
-				    slot.texture is not None
-				and slot.texture.type == 'IMAGE'
-				and slot.texture.image is not None
-				and slot.texture.image.size[0] != 0
-			):
-				image = slot.texture.image
-			else:
-				image = None
-			options.append((image, slot.texture.fmdl_texture_role))
-		
-		for (image, role) in options:
-			if role.lower().startswith(rolePrefix.lower()):
-				return image
-		if len(options) > 0:
-			return options[0][0]
-		return None
-	
 	def importMesh(mesh, name, fmdl, materialIDs, armatureObjectID, boneIDs):
 		blenderMesh = bpy.data.meshes.new(name)
 		
@@ -385,37 +351,40 @@ def importFmdl(context, fmdl, filename, importSettings = None):
 			colorLayer.active = True
 			colorLayer.active_render = True
 		
-		if mesh.vertexFields.uvCount >= 1:
-			uvTexture = blenderMesh.uv_textures.new(name = UV_MAP_COLOR)
+		for uvIndex in range(mesh.vertexFields.uvCount):
+			if uvIndex == 0:
+				uvName = "UVMap"
+			elif uvIndex == 1 and isTimingMaterial(blenderMaterial):
+				uvName = "TimingUVMap"
+			else:
+				uvName = "UVMap %s" % (uvIndex + 1)
+			
+			uvTexture = blenderMesh.uv_textures.new(name = uvName)
 			uvLayer = blenderMesh.uv_layers[uvTexture.name]
 			
 			uvLayer.data.foreach_set("uv", tuple(itertools.chain.from_iterable([
-				(vertex.uv[0].u, 1.0 - vertex.uv[0].v) for vertex in loopVertices
+				(vertex.uv[uvIndex].u, 1.0 - vertex.uv[uvIndex].v) for vertex in loopVertices
 			])))
-			uvTexture.active = True
-			uvTexture.active_clone = True
-			uvTexture.active_render = True
+			if uvIndex == 0:
+				uvTexture.active = True
+				uvTexture.active_clone = True
+				uvTexture.active_render = True
 			
-			image = findUvMapImage(blenderMaterial, UV_MAP_COLOR, 'Base_Tex_')
+			image = None
+			for slot in blenderMaterial.texture_slots:
+				if (
+						slot is not None
+					and slot.uv_layer == uvName
+					and slot.texture is not None
+					and slot.texture.type == 'IMAGE'
+					and slot.texture.image is not None
+					and slot.texture.image.size[0] != 0
+				):
+					image = slot.texture.image
+					break
 			if image is not None:
 				for i in range(len(uvTexture.data)):
 					uvTexture.data[i].image = image
-		
-		if mesh.vertexFields.uvCount >= 2 and 0 not in mesh.vertexFields.uvEqualities[1]:
-			uvTexture = blenderMesh.uv_textures.new(name = UV_MAP_NORMALS)
-			uvLayer = blenderMesh.uv_layers[uvTexture.name]
-			
-			uvLayer.data.foreach_set("uv", tuple(itertools.chain.from_iterable([
-				(vertex.uv[1].u, 1.0 - vertex.uv[1].v) for vertex in loopVertices
-			])))
-			
-			image = findUvMapImage(blenderMaterial, UV_MAP_NORMALS, 'NormalMap_Tex_')
-			if image is not None:
-				for i in range(len(uvTexture.data)):
-					uvTexture.data[i].image = image
-		
-		if mesh.vertexFields.uvCount >= 3:
-			raise UnsupportedFmdl("No support for fmdl files with more than 2 UV maps")
 		
 		blenderMesh.fmdl_high_precision_uvs = mesh.vertexFields.highPrecisionUv
 		
@@ -676,7 +645,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		return (orderedBones, bonesByName)
 	
-	def exportMeshGeometry(blenderMeshObject, colorLayer, uvLayerColor, uvLayerNormal, boneVector, scene):
+	def exportMeshGeometry(blenderMeshObject, colorLayer, boneVector, scene):
 		#
 		# Setup a modified version of the mesh data that can be fiddled with.
 		#
@@ -702,11 +671,7 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			modifiedBlenderMesh = newBlenderMesh
 		
 		modifiedBlenderMesh.use_auto_smooth = True
-		if uvLayerNormal is None:
-			uvLayerTangent = uvLayerColor
-		else:
-			uvLayerTangent = uvLayerNormal
-		modifiedBlenderMesh.calc_tangents(uvLayerTangent)
+		modifiedBlenderMesh.calc_tangents(modifiedBlenderMesh.uv_layers[0].name)
 		
 		
 		
@@ -808,14 +773,10 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 			
 			if colorLayer is not None:
 				loop.color = [c for c in modifiedBlenderMesh.vertex_colors[colorLayer].data[i].color] + [1.0]
-			loop.uv.append(FmdlFile.FmdlFile.Vector2(
-				modifiedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[0],
-				1.0 - modifiedBlenderMesh.uv_layers[uvLayerColor].data[i].uv[1],
-			))
-			if uvLayerNormal != None:
+			for uvLayer in modifiedBlenderMesh.uv_layers:
 				loop.uv.append(FmdlFile.FmdlFile.Vector2(
-					modifiedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[0],
-					1.0 - modifiedBlenderMesh.uv_layers[uvLayerNormal].data[i].uv[1],
+					uvLayer.data[i].uv[0],
+					1.0 - uvLayer.data[i].uv[1],
 				))
 			
 			found = False
@@ -890,61 +851,16 @@ def exportFmdl(context, rootObjectName, exportSettings = None):
 		
 		if len(blenderMesh.uv_layers) == 0:
 			raise FmdlExportError("Mesh '%s' does not have a UV map." % name)
-		elif len(blenderMesh.uv_layers) == 1:
-			uvLayerColor = blenderMesh.uv_layers[0].name
-			uvLayerNormal = None
-			vertexFields.uvCount = 1
-		else:
-			colorUvMaps = []
-			normalUvMaps = []
-			for slot in blenderMaterial.texture_slots:
-				if slot == None:
-					continue
-				uvLayerName = slot.uv_layer
-				if uvLayerName not in blenderMesh.uv_layers:
-					continue
-				if '_NRM' in slot.texture.fmdl_texture_role:
-					uvMaps = normalUvMaps
-				else:
-					uvMaps = colorUvMaps
-				if uvLayerName not in uvMaps:
-					uvMaps.append(uvLayerName)
-			
-			if len(colorUvMaps) > 1:
-				raise FmdlExportError("Mesh '%s' has ambiguous UV maps: multiple UV maps configured as primary UV map." % name)
-			if len(normalUvMaps) > 1:
-				raise FmdlExportError("Mesh '%s' has ambiguous UV maps: multiple UV maps configured as normals UV map." % name)
-			
-			if len(colorUvMaps) == 0 and 'UVMap' in blenderMesh.uv_layers and 'UVMap' not in normalUvMaps:
-				colorUvMaps.append('UVMap')
-			if len(normalUvMaps) == 0 and 'normal_map' in blenderMesh.uv_layers and 'normal_map' not in colorUvMaps:
-				normalUvMaps.append('normal_map')
-			if len(colorUvMaps) == 0 and len(normalUvMaps) == 1 and len(blenderMesh.uv_layers) == 2:
-				for layer in blenderMesh.uv_layers:
-					if layer.name != normalUvMaps[0]:
-						colorUvMaps.append(layer.name)
-						break
-			
-			if len(colorUvMaps) == 0:
-				raise FmdlExportError("Mesh '%s' has ambiguous UV maps: found %s UV maps, but no primary UV map is configured." % (name, len(blenderMesh.uv_layers)))
-			if len(normalUvMaps) == 0:
-				raise FmdlExportError("Mesh '%s' has ambiguous UV maps: found %s UV maps, but no normals UV map is configured." % (name, len(blenderMesh.uv_layers)))
-			
-			uvLayerColor = colorUvMaps[0]
-			if colorUvMaps[0] == normalUvMaps[0]:
-				uvLayerNormal = None
-				vertexFields.uvCount = 1
-			else:
-				uvLayerNormal = normalUvMaps[0]
-				vertexFields.uvCount = 2
-		
+		elif len(blenderMesh.uv_layers) > 4:
+			raise FmdlExportError("Mesh '%s' has more than 4 UV maps, which is not supported." % name)
+		vertexFields.uvCount = len(blenderMesh.uv_layers)
 		vertexFields.highPrecisionUv = blenderMesh.fmdl_high_precision_uvs
 		
 		boneVector = [bonesByName[vertexGroup.name] for vertexGroup in blenderMeshObject.vertex_groups]
 		if len(boneVector) > 0:
 			vertexFields.hasBoneMapping = True
 		
-		(vertices, faces) = exportMeshGeometry(blenderMeshObject, colorLayer, uvLayerColor, uvLayerNormal, boneVector, scene)
+		(vertices, faces) = exportMeshGeometry(blenderMeshObject, colorLayer, boneVector, scene)
 		
 		mesh = FmdlFile.FmdlFile.Mesh()
 		mesh.vertices = vertices

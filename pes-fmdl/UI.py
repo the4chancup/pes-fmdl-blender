@@ -1226,8 +1226,6 @@ def FMDL_Material_Preset_set(material, value):
 	)
 	
 	# Summarize and clear out existing texture slots
-	uvMapColor = None
-	uvMapNormals = None
 	existingTextures = {}
 	for textureSlot in material.texture_slots:
 		if textureSlot is None:
@@ -1241,16 +1239,8 @@ def FMDL_Material_Preset_set(material, value):
 		if textureSlot.texture.fmdl_texture_role in existingTextures:
 			continue
 		existingTextures[textureSlot.texture.fmdl_texture_role] = textureSlot.texture.name
-		if '_NRM' in textureSlot.texture.fmdl_texture_role and uvMapNormals is None:
-			uvMapNormals = textureSlot.uv_layer
-		if '_NRM' not in textureSlot.texture.fmdl_texture_role and uvMapColor is None:
-			uvMapColor = textureSlot.uv_layer
 	for i in range(len(material.texture_slots)):
 		material.texture_slots.clear(i)
-	if uvMapColor is None:
-		uvMapColor = 'UVMap'
-	if uvMapNormals is None:
-		uvMapNormals = uvMapColor
 	# Create new texture slots
 	for texture in preset.textures:
 		if texture.role in existingTextures:
@@ -1258,7 +1248,7 @@ def FMDL_Material_Preset_set(material, value):
 		else:
 			blenderTexture = IO.createTexture(texture.role, texture.directory, texture.filename)
 		
-		IO.createTextureSlot(material, blenderTexture, uvMapColor, uvMapNormals)
+		IO.createTextureSlot(material, blenderTexture)
 	
 	# Summarize and clear out existing parameters
 	existingParameters = {}

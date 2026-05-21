@@ -302,7 +302,6 @@ class FmdlFile:
 			self.hasColor = False
 			self.hasBoneMapping = False
 			self.uvCount = 0
-			self.uvEqualities = {}
 			self.highPrecisionUv = False
 	
 	class VertexEncoding:
@@ -686,12 +685,6 @@ class FmdlFile:
 				raise InvalidFmdl("Non-monotonic UV map in vertex format definition: has uv1 but not uv0")
 			if boneWeights != boneIndices:
 				raise InvalidFmdl("Invalid vertex format specification: contains one of (bone weights, bone indices) but not the other")
-			
-			for i in range(vertexFields.uvCount):
-				vertexFields.uvEqualities[i] = []
-				for j in range(vertexFields.uvCount):
-					if i != j and uvOffsets[i] == uvOffsets[j]:
-						vertexFields.uvEqualities[i].append(j)
 			
 			if not materialInstanceID < len(materialInstances):
 				raise InvalidFmdl("Invalid material instance ID %d referenced by mesh" % materialInstanceID)
@@ -1537,13 +1530,6 @@ class FmdlFile:
 			FmdlFile.FmdlVertexDatumType.uv3,
 		]
 		for i in range(vertexFields.uvCount):
-			equalUv = None
-			equalities = vertexFields.uvEqualities[i] if i in vertexFields.uvEqualities else []
-			for uv in equalities:
-				if uv in uvOffsets:
-					equalUv = uv
-					break
-			
 			if vertexFields.highPrecisionUv:
 				uvType = FmdlFile.FmdlVertexDatumFormat.doubleFloat32
 				uvSize = 8
@@ -1551,13 +1537,10 @@ class FmdlFile:
 				uvType = FmdlFile.FmdlVertexDatumFormat.doubleFloat16
 				uvSize = 4
 			
-			if equalUv != None:
-				FmdlFile.addVertexFormat(fmdl, uvTypes[i], uvType, uvOffsets[equalUv])
-			else:
-				FmdlFile.addVertexFormat(fmdl, uvTypes[i], uvType, bufferOffsets[1])
-				formatEntries.append((1, uvTypes[i], uvType, bufferOffsets[1]))
-				uvOffsets[i] = bufferOffsets[1]
-				bufferOffsets[1] += uvSize
+			FmdlFile.addVertexFormat(fmdl, uvTypes[i], uvType, bufferOffsets[1])
+			formatEntries.append((1, uvTypes[i], uvType, bufferOffsets[1]))
+			uvOffsets[i] = bufferOffsets[1]
+			bufferOffsets[1] += uvSize
 			typeEntries[3] += 1
 		
 		FmdlFile.addMeshFormat(fmdl, 0, typeEntries[0], bufferOffsets[0], 0, vertexPositionBufferOffset)

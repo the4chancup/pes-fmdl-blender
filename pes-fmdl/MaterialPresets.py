@@ -136,6 +136,43 @@ glass = Preset(
 	]
 )
 
+uvscroll = Preset(
+	'uvscroll', 'UVScroll shader',
+	'fox3dfw_constant_srgb_ndr_uvscroll', 'fox3DFW_ConstantSRGB_NDR_UVScroll',
+	True, False,
+	16, 255 & ~32,
+	5, 255 & ~1 & ~2,
+	[
+		Texture('Base_Tex_SRGB', '', '_bsm.dds', False),
+	],
+	[
+		Parameter('UV0_Speed_U', [1, 0, 0, 0], False),
+		Parameter('UV0_Speed_V', [0, 0, 0, 0], False),
+		Parameter('Offset', [0, 0, 0, 0], False),
+	]
+)
+uvstep = Preset(
+	'uvstep', 'UVStep shader',
+	'fox3dfw_constant_srgb_ndr_uvstep', 'fox3DFW_ConstantSRGB_NDR_UVStep',
+	True, False,
+	16, 255 & ~32,
+	5, 255 & ~1 & ~2,
+	[
+		Texture('Base_Tex_SRGB', '', '_bsm.dds', False),
+		Texture('Timing_Tex_LIN', '', 'timing.dds', False),
+	],
+	[
+		Parameter('Tile_Count_U', [1, 0, 0, 0], False),
+		Parameter('Tile_Count_V', [1, 0, 0, 0], False),
+		Parameter('Tiles_Used', [1, 0, 0, 0], False),
+		Parameter('Scale_UVs_To_Tiles', [1, 0, 0, 0], False),
+		Parameter('Seconds_Per_Animation_Cycle', [1, 0, 0, 0], False),
+		Parameter('Use_Timing_Texture', [0, 0, 0, 0], False),
+		Parameter('Seconds_Per_Timing_U_Cycle', [0, 0, 0, 0], False),
+		Parameter('Seconds_Per_Timing_V_Cycle', [0, 0, 0, 0], False),
+	]
+)
+
 presets = [
 	blinBasic,
 	blin,
@@ -143,6 +180,8 @@ presets = [
 	constantOriginal,
 	metalic,
 	glass,
+	uvscroll,
+	uvstep,
 ]
 
 textureDirectoryPresets = [
